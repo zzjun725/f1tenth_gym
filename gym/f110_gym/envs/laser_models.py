@@ -185,7 +185,7 @@ def get_scan(pose, theta_dis, fov, num_beams, theta_index_increment, sines, cosi
 
     return scan
 
-@njit(cache=True, error_model='numpy')
+@njit(cache=True)
 def check_ttc_jit(scan, vel, scan_angles, cosines, side_distances, ttc_thresh):
     """
     Checks the iTTC of each beam in a scan for collision with environment
@@ -202,17 +202,19 @@ def check_ttc_jit(scan, vel, scan_angles, cosines, side_distances, ttc_thresh):
         in_collision (bool): whether vehicle is in collision with environment
         collision_angle (float): at which angle the collision happened
     """
+    # if vel != 0.0:
     in_collision = False
-    if vel != 0.0:
-        num_beams = scan.shape[0]
-        for i in range(num_beams):
-            proj_vel = vel*cosines[i]
-            ttc = (scan[i] - side_distances[i])/proj_vel
-            if (ttc < ttc_thresh) and (ttc >= 0.0):
-                in_collision = True
-                break
-    else:
-        in_collision = False
+    num_beams = scan.shape[0]
+    for i in range(num_beams):
+        # proj_vel = vel*cosines[i]
+        # ttc = (scan[i] - side_distances[i])/proj_vel
+        ttc = scan[i] - side_distances[i]
+        # if (ttc < ttc_thresh) and (ttc >= 0.0):
+        if (ttc <= 0.):
+            in_collision = True
+            break
+    # else:
+        # in_collision = False
 
     return in_collision
 

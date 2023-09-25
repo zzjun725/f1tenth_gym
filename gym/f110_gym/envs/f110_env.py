@@ -148,7 +148,7 @@ class F110Env(gym.Env):
         try:
             self.integrator = kwargs['integrator']
         except:
-            self.integrator = Integrator.RK4
+            self.integrator = Integrator.Euler
 
         # radius to consider done
         self.start_thresh = 0.5  # 10cm
