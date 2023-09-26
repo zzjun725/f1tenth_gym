@@ -2,18 +2,18 @@
 ![Docker](https://github.com/f1tenth/f1tenth_gym/actions/workflows/docker.yml/badge.svg)
 # The F1TENTH Gym environment
 
+This is the repository of the F1TENTH Gym environment.
+
+This project is still under heavy development.
+
+You can find the [documentation](https://f1tenth-gym.readthedocs.io/en/latest/) of the environment here.
+
 ## Fork note 
 
 This fork changes from the main by:
 1. Correct the collision calculation when outside the boundary.
 2. Allow change of Lidar scan resolution.
 3. Set the default integrator to Eular for consistency. 
-
-This is the repository of the F1TENTH Gym environment.
-
-This project is still under heavy development.
-
-You can find the [documentation](https://f1tenth-gym.readthedocs.io/en/latest/) of the environment here.
 
 ## Quickstart
 We recommend installing the simulation inside a virtualenv. You can install the environment by running:
