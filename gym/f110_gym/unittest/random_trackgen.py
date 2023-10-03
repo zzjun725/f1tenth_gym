@@ -37,6 +37,8 @@ from matplotlib.patches import Polygon
 from matplotlib.collections import PatchCollection
 import argparse
 
+import pdb
+
 parser = argparse.ArgumentParser()
 parser.add_argument('--seed', type=int, default=123, help='Seed for the numpy rng.')
 parser.add_argument('--num_maps', type=int, default=1, help='Number of maps to generate.')
@@ -177,14 +179,15 @@ def convert_track(track, track_int, track_ext, iter):
     # converts track to image and saves the centerline as waypoints
     fig, ax = plt.subplots()
     fig.set_size_inches(20, 20)
-    ax.plot(*track_int.T, color='black', linewidth=3)
-    ax.plot(*track_ext.T, color='black', linewidth=3)
-    plt.tight_layout()
-    ax.set_aspect('equal')
-    ax.set_xlim(-180, 300)
-    ax.set_ylim(-300, 300)
-    plt.axis('off')
-    plt.savefig('maps/map' + str(iter) + '.png', dpi=80)
+    # TODO
+    # ax.plot(*track_int.T, color='black', linewidth=3)
+    # ax.plot(*track_ext.T, color='black', linewidth=3)
+    # plt.tight_layout()
+    # ax.set_aspect('equal')
+    # ax.set_xlim(-180, 300)
+    # ax.set_ylim(-300, 300)
+    # plt.axis('off')
+    # plt.savefig('maps/map' + str(iter) + '.png', dpi=80)
 
     map_width, map_height = fig.canvas.get_width_height()
     print('map size: ', map_width, map_height)
@@ -199,13 +202,14 @@ def convert_track(track, track_int, track_ext, iter):
     map_origin_x = -origin_x_pix*0.05
     map_origin_y = -origin_y_pix*0.05
 
-    # convert image using cv2
-    cv_img = cv2.imread('maps/map' + str(iter) + '.png', -1)
-    # convert to bw
-    cv_img_bw = cv2.cvtColor(cv_img, cv2.COLOR_BGR2GRAY)
-    # saving to img
-    cv2.imwrite('maps/map' + str(iter) + '.png', cv_img_bw)
-    cv2.imwrite('maps/map' + str(iter) + '.pgm', cv_img_bw)
+    # TODO
+    # # convert image using cv2
+    # cv_img = cv2.imread('maps/map' + str(iter) + '.png', -1)
+    # # convert to bw
+    # cv_img_bw = cv2.cvtColor(cv_img, cv2.COLOR_BGR2GRAY)
+    # # saving to img
+    # cv2.imwrite('maps/map' + str(iter) + '.png', cv_img_bw)
+    # cv2.imwrite('maps/map' + str(iter) + '.pgm', cv_img_bw)
 
     # create yaml file
     yaml = open('maps/map' + str(iter) + '.yaml', 'w')

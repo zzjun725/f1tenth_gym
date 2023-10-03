@@ -3,6 +3,7 @@ import yaml
 import gym
 import numpy as np
 from argparse import Namespace
+import json
 
 from numba import njit
 
@@ -228,7 +229,9 @@ def main():
     main entry point
     """
 
-    work = {'mass': 1225.88, 'lf': 0.80597534362552312, 'tlad': 9.6461887897713965, 'vgain': 0.950338203837889}
+    work = {'mass': 1225.88, 'lf': 0.80597534362552312, 'tlad': 10.6461887897713965, 'vgain': 0.950338203837889}
+    use_dyn_friction = False
+    constant_friction = 0.4
 
     with open('config_example_map.yaml') as file:
         conf_dict = yaml.load(file, Loader=yaml.FullLoader)
@@ -254,6 +257,16 @@ def main():
 
         planner.render_waypoints(env_renderer)
 
+    if use_dyn_friction:
+        tpamap_name = './rounded_rectangle_tpamap.csv'
+        tpadata_name = './rounded_rectangle_tpadata.json'
+
+        tpamap = np.loadtxt(tpamap_name, delimiter=';', skiprows=1)
+
+        tpadata = {}
+        with open(tpadata_name) as f:
+            tpadata = json.load(f)
+
     env = gym.make('f110_gym:f110-v0', map=conf.map_path, map_ext=conf.map_ext,
                    num_agents=1, timestep=0.001, model='MB', drive_control_mode='vel',
                    steering_control_mode='angle')
@@ -261,7 +274,7 @@ def main():
 
     # init vector = [x,y,yaw,steering angle, velocity, yaw_rate, beta]
     obs, step_reward, done, info = env.reset(
-        np.array([[conf.sx, conf.sy, conf.stheta, 0.0, 5.0, 0.0, 0.0]]))
+        np.array([[conf.sx, conf.sy, conf.stheta, 0.0, 0.0, 0.0, 0.0]]))
     env.render()
 
     laptime = 0.0
@@ -274,16 +287,23 @@ def main():
         speed, steer = planner.plan(obs['poses_x'][0], obs['poses_y'][0], obs['poses_theta'][0], work['tlad'],
                                     work['vgain'])
 
+        if use_dyn_friction:
+            min_id = np.argmin(np.sum(np.square(np.array(tpamap) - np.array([obs['poses_x'][0], obs['poses_y'][0]])), 1))
+            env.params['tire_p_dy1'] = tpadata[str(min_id)][0] * 0.9  # mu_y
+            env.params['tire_p_dx1'] = tpadata[str(min_id)][0]  # mu_x
+        else:
+            env.params['tire_p_dy1'] = constant_friction * 0.9  # mu_y
+            env.params['tire_p_dx1'] = constant_friction  # mu_x
+
         step_reward = 0.0
         for i in range(num_of_sim_steps):
-            obs, rew, done, info = env.step(np.array([[steer, speed]]))
+            obs, rew, done, info = env.step(np.array([[steer, 10.0]]))
             step_reward += rew
         laptime += step_reward
         env.render(
             mode='human_fast')  # Naive implementation of 'human' render mode does not work well, use 'human_fast'
 
     print('Sim elapsed time:', laptime, 'Real elapsed time:', time.time() - start)
-    print("Felix was here")
 
 
 if __name__ == '__main__':

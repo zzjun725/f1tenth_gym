@@ -4,16 +4,9 @@
 
 This is the repository of the F1TENTH Gym environment.
 
-This project is still under heavy development.
+This project is still under heavy developement.
 
 You can find the [documentation](https://f1tenth-gym.readthedocs.io/en/latest/) of the environment here.
-
-## Fork note 
-
-This fork changes from the main by:
-1. Correct the collision calculation when outside the boundary.
-2. Allow change of Lidar scan resolution.
-3. Set the default integrator to Eular for consistency. 
 
 ## Quickstart
 We recommend installing the simulation inside a virtualenv. You can install the environment by running:
@@ -47,11 +40,11 @@ ImportError: Can't find framework /System/Library/Frameworks/OpenGL.framework.
 ```
 You can fix the error by installing a newer version of pyglet:
 ```bash
-$ pip3 install pyglet==1.5.20
+$ pip3 install pyglet==1.5.11
 ```
 And you might see an error similar to
 ```
-f110-gym 0.2.1 requires pyglet<1.5, but you have pyglet 1.5.20 which is incompatible.
+gym 0.17.3 requires pyglet<=1.5.0,>=1.4.0, but you'll have pyglet 1.5.11 which is incompatible.
 ```
 which could be ignored. The environment should still work without error.
 

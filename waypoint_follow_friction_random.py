@@ -3,10 +3,13 @@ import yaml
 import gym
 import numpy as np
 from argparse import Namespace
+import json
 
 from numba import njit
 
 from pyglet.gl import GL_POINTS
+
+import pdb
 
 """
 Planner Helpers
@@ -144,6 +147,9 @@ def get_actuation(pose_theta, lookahead_point, position, lookahead_distance, whe
         return speed, 0.
     radius = 1 / (2.0 * waypoint_y / lookahead_distance ** 2)
     steering_angle = np.arctan(wheelbase / radius)
+
+    # speed = vel_
+
     return speed, steering_angle
 
 
@@ -165,6 +171,8 @@ class PurePursuitPlanner:
         loads waypoints
         """
         self.waypoints = np.loadtxt(conf.wpt_path, delimiter=conf.wpt_delim, skiprows=conf.wpt_rowskip)
+        # self.waypoints = self.waypoints[::-1] # NOTE: reverse map
+        # self.waypoints = self.waypoints * .1 # NOTE: map scales
 
     def render_waypoints(self, e):
         """
@@ -176,6 +184,7 @@ class PurePursuitPlanner:
         points = np.vstack((self.waypoints[:, self.conf.wpt_xind], self.waypoints[:, self.conf.wpt_yind])).T
 
         scaled_points = 50. * points
+        # scaled_points = 1. * points # TODO
 
         for i in range(points.shape[0]):
             if len(self.drawn_waypoints) < points.shape[0]:
@@ -221,69 +230,163 @@ class PurePursuitPlanner:
         speed = vgain * speed
 
         return speed, steering_angle
+    
 
+def get_steers():
+    scale_ = 10 # 1 for 0.001 time step
+    length = int(1e6 // scale_)
+    peaks = 200
+
+    x = np.linspace(0, 1, length)
+    y = np.zeros_like(x)
+
+    for _ in range(peaks):
+        amplitude = np.random.rand() 
+        frequency = np.random.randint(1, peaks)
+        phase = np.random.rand() * 2 * np.pi 
+
+        y += amplitude * np.sin(2 * np.pi * frequency * x + phase)
+
+    y -= np.mean(y)
+    y_lower = np.min(y)
+    z = y - y_lower
+    y_upper = np.max(z)
+    z = z/y_upper
+    z = z*2
+    z = z - 1.
+
+    return z
+
+
+def warm_up(conf, steers_, num_of_sim_steps):
+    env = gym.make('f110_gym:f110-v0', map=conf.map_path, map_ext=conf.map_ext,
+                        num_agents=1, timestep=0.01, model='MB', drive_control_mode='vel',
+                        steering_control_mode='angle')
+
+    # init vector = [x,y,yaw,steering angle, velocity, yaw_rate, beta]
+    obs, step_reward, done, info = env.reset(
+        np.array([[conf.sx, conf.sy, conf.stheta, 0.0, 0.0, 0.0, 0.0]]))
+
+    step_count_ = 0
+    warm_up_steps = 2000
+
+    while step_count_ < warm_up_steps:
+        steer = steers_[step_count_]
+
+        env.params['tire_p_dy1'] = friction_  # mu_y
+        env.params['tire_p_dx1'] = friction_  # mu_x
+
+        step_reward = 0.0
+
+        for i in range(num_of_sim_steps):
+            step_count_ += 1
+
+            try:
+                obs, rew, done, info = env.step(np.array([[steer, vel_]]))
+            except ZeroDivisionError:
+                print('error at: ', step_count_)
+                return 'error', ' ', ' ', ' '
+
+    return step_count_, env, obs, step_reward
+
+
+
+
+vel_ = 8.
+friction_ = 1.0
 
 def main():
     """
     main entry point
     """
-
-    work = {'mass': 1225.88, 'lf': 0.80597534362552312, 'tlad': 9.6461887897713965, 'vgain': 0.950338203837889}
-
-    with open('config_example_map.yaml') as file:
+    
+    with open('maps/config_example_map.yaml') as file:
         conf_dict = yaml.load(file, Loader=yaml.FullLoader)
     conf = Namespace(**conf_dict)
 
-    planner = PurePursuitPlanner(conf, 0.805975 + 1.50876)
 
-    def render_callback(env_renderer):
-        # custom extra drawing function
+    vels_ = [7.7]
+    frictions_ = [0.6, 1.0, 1.4]
+    # frictions_ = [1.4]
+    steers_ = get_steers()
+    for vel_ in vels_:
+        for friction_ in frictions_:
+            
+            
+            start = time.time()
 
-        e = env_renderer
+            num_of_sim_steps = 20 # NOTE: fixed no matter what env.timestep is
+            
+            total_states = None
+            total_controls = None
+            for _ in range(1): # more samples
+                states = None
+                controls = None
+                # steers_ = get_steers()
 
-        # update camera to follow car
-        x = e.cars[0].vertices[::2]
-        y = e.cars[0].vertices[1::2]
-        top, bottom, left, right = max(y), min(y), min(x), max(x)
-        e.score_label.x = left
-        e.score_label.y = top - 700
-        e.left = left - 800
-        e.right = right + 800
-        e.top = top + 800
-        e.bottom = bottom - 800
+                step_count_ = 'error'
+                while step_count_ == 'error':
+                    step_count_, env, obs, step_reward = warm_up(conf, steers_, num_of_sim_steps)
 
-        planner.render_waypoints(env_renderer)
+                while step_count_ < len(steers_):
+                    print(step_count_, '/', len(steers_))
+                    steer = steers_[step_count_]
 
-    env = gym.make('f110_gym:f110-v0', map=conf.map_path, map_ext=conf.map_ext,
-                   num_agents=1, timestep=0.001, model='MB', drive_control_mode='vel',
-                   steering_control_mode='angle')
-    env.add_render_callback(render_callback)
+                    env.params['tire_p_dy1'] = friction_  # mu_y
+                    env.params['tire_p_dx1'] = friction_  # mu_x
 
-    # init vector = [x,y,yaw,steering angle, velocity, yaw_rate, beta]
-    obs, step_reward, done, info = env.reset(
-        np.array([[conf.sx, conf.sy, conf.stheta, 0.0, 5.0, 0.0, 0.0]]))
-    env.render()
+                    step_reward = 0.0
 
-    laptime = 0.0
-    start = time.time()
+                    for i in range(num_of_sim_steps):
+                        step_count_ += 1
 
-    control_step = 20.0  # ms
-    num_of_sim_steps = int(control_step / (env.timestep * 1000.0))
+                        try:
+                            obs, rew, done, info = env.step(np.array([[steer, vel_]]))
+                        except ZeroDivisionError:
+                            print('error at: ', step_count_)
+                            step_count_ += num_of_sim_steps - i - 1
+                            steers_ = get_steers()
+                            check_error = 'error'
+                            while check_error == 'error':
+                                check_error, env, obs, _ = warm_up(conf, steers_, num_of_sim_steps)
+                            break
 
-    while not done:
-        speed, steer = planner.plan(obs['poses_x'][0], obs['poses_y'][0], obs['poses_theta'][0], work['tlad'],
-                                    work['vgain'])
+                        state = np.array([obs['x3'][0], obs['x4'][0], obs['x6'][0], 
+                                        obs['x11'][0]])
+                        #x3 = steering angle of front wheels
+                        #x4 = velocity in x-direction
+                        #x6 = yaw rate
+                        #x11 = velocity in y-direction
 
-        step_reward = 0.0
-        for i in range(num_of_sim_steps):
-            obs, rew, done, info = env.step(np.array([[steer, speed]]))
-            step_reward += rew
-        laptime += step_reward
-        env.render(
-            mode='human_fast')  # Naive implementation of 'human' render mode does not work well, use 'human_fast'
+                        control = np.array([steer, vel_])
 
-    print('Sim elapsed time:', laptime, 'Real elapsed time:', time.time() - start)
-    print("Felix was here")
+                        if states is None:
+                            states = state.reshape((1, state.shape[0]))
+                        else:
+                            states = np.vstack((states, state.reshape((1, state.shape[0]))))
+                        if controls is None:
+                            controls = control.reshape((1, control.shape[0]))
+                        else:
+                            controls = np.vstack((controls, control.reshape((1, control.shape[0]))))
+
+                    # # NOTE: render
+                    # env.render(
+                    #     mode='human_fast')  # Naive implementation of 'human' render mode does not work well, use 'human_fast'
+
+                if total_states is None:
+                    total_states = states
+                else:
+                    total_states = np.vstack((total_states, states))
+                if total_controls is None:
+                    total_controls = controls
+                else:
+                    total_controls = np.vstack((total_controls, controls))
+
+            file_name_ = 'data/Random_Spielberg_raceline/' # NOTE
+            np.save(file_name_+'states_mb_fric_{}_vel_{}.npy'.format(int(friction_*10), int(vel_*10)), total_states)
+            np.save(file_name_+'controls_mb_fric_{}_vel_{}.npy'.format(int(friction_*10), int(vel_*10)), total_controls)
+
+            print('Real elapsed time:', time.time() - start)
 
 
 if __name__ == '__main__':
