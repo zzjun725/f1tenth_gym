@@ -44,6 +44,7 @@ ZOOM_IN_FACTOR = 1.2
 # ZOOM_IN_FACTOR = 10.
 ZOOM_OUT_FACTOR = 1/ZOOM_IN_FACTOR
 
+PLOT_SCALE = 10.
 # vehicle shape constants
 CAR_LENGTH = 5.8
 CAR_WIDTH = 3.1
@@ -70,6 +71,7 @@ class EnvRenderer(pyglet.window.Window):
         super().__init__(width, height, config=conf, resizable=True, vsync=False, *args, **kwargs)
 
         # gl init
+        # glClearColor(255/255, 0/255, 0/255, 1.)
         glClearColor(9/255, 32/255, 87/255, 1.)
 
         # initialize camera values
@@ -149,7 +151,7 @@ class EnvRenderer(pyglet.window.Window):
         # mask and only leave the obstacle points
         map_mask = map_img == 0.0
         map_mask_flat = map_mask.flatten()
-        map_points = 50. * map_coords[:, map_mask_flat].T
+        map_points = PLOT_SCALE * map_coords[:, map_mask_flat].T
         for i in range(map_points.shape[0]):
             self.batch.add(1, GL_POINTS, None, ('v3f/stream', [map_points[i, 0], map_points[i, 1], map_points[i, 2]]), ('c3B/stream', [183, 193, 222]))
         self.map_points = map_points
@@ -223,6 +225,7 @@ class EnvRenderer(pyglet.window.Window):
         if .01 < self.zoom_level * f < 100:
 
             self.zoom_level *= f
+            
 
             (width, height) = self.get_size()
 
@@ -329,7 +332,7 @@ class EnvRenderer(pyglet.window.Window):
 
         poses = np.stack((poses_x, poses_y, poses_theta)).T
         for j in range(poses.shape[0]):
-            vertices_np = 50. * get_vertices(poses[j, :], CAR_LENGTH, CAR_WIDTH)
+            vertices_np = PLOT_SCALE * get_vertices(poses[j, :], CAR_LENGTH, CAR_WIDTH)
             vertices = list(vertices_np.flatten())
             self.cars[j].vertices = vertices
         self.poses = poses
