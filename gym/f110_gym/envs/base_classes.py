@@ -309,9 +309,10 @@ class RaceCar(object):
             self.steer_buffer = self.steer_buffer[:-1]
             self.steer_buffer = np.append(raw_steer, self.steer_buffer)
 
-        # steering angle velocity input to steering velocity acceleration input
-        accl, sv = pid(drive, steer, self.state[3], self.state[2], self.params['sv_max'], self.params['a_max'],
-                       self.params['v_max'], self.params['v_min'])
+        if self.steering_control_mode != 'vel' or self.drive_control_mode != 'acc':
+            # steering angle velocity input to steering velocity acceleration input
+            accl, sv = pid(drive, steer, self.state[3], self.state[2], self.params['sv_max'], self.params['a_max'],
+                        self.params['v_max'], self.params['v_min'])
 
         if self.drive_control_mode == 'acc':
             if drive > self.params['a_max']:
@@ -661,8 +662,11 @@ class Simulator(object):
                         'linear_vels_y': [],
                         'ang_vels_z': [],
                         'collisions': self.collisions,
+                        'x1': [],
+                        'x2': [],
                         'x3': [],
                         'x4': [],
+                        'x5': [],
                         'x6': [],
                         'x11': [],
                         'x12': [],
@@ -677,8 +681,11 @@ class Simulator(object):
             observations['linear_vels_x'].append(agent.state[3])
             observations['linear_vels_y'].append(0.)
             observations['ang_vels_z'].append(agent.state[5])
+            observations['x1'].append(agent.state[0])
+            observations['x2'].append(agent.state[1])
             observations['x3'].append(agent.state[2])
             observations['x4'].append(agent.state[3])
+            observations['x5'].append(agent.state[4])
             observations['x6'].append(agent.state[5])
             observations['x11'].append(agent.state[10])
             observations['x12'].append(agent.state[11])
