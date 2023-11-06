@@ -40,10 +40,12 @@ import yaml
 from f110_gym.envs.collision_models import get_vertices
 
 # zooming constants
-ZOOM_IN_FACTOR = 1.3
+ZOOM_IN_FACTOR = 1.2
 ZOOM_OUT_FACTOR = 1/ZOOM_IN_FACTOR
 
-PLOT_SCALE = 10.
+import os
+PLOT_SCALE = 10. if os.getenv('F110GYM_PLOT_SCALE') == None else float(os.getenv('F110GYM_PLOT_SCALE'))
+
 # vehicle shape constants
 CAR_LENGTH = 0.58 * 7
 CAR_WIDTH = 0.31 * 7
@@ -70,8 +72,8 @@ class EnvRenderer(pyglet.window.Window):
         super().__init__(width, height, config=conf, resizable=True, vsync=False, *args, **kwargs)
 
         # gl init
-        # glClearColor(255/255, 0/255, 0/255, 1.)
-        glClearColor(9/255, 32/255, 87/255, 1.)
+        glClearColor(150/255, 150/255, 150/255, 1.)
+        # glClearColor(9/255, 32/255, 87/255, 1.)
 
         # initialize camera values
         self.left = -width/2
@@ -105,7 +107,8 @@ class EnvRenderer(pyglet.window.Window):
                 anchor_y='center',
                 # width=0.01,
                 # height=0.01,
-                color=(255, 255, 255, 255),
+                # color=(255, 255, 255, 255),
+                color=(0, 0, 0, 255),
                 batch=self.batch)
 
         self.fps_display = pyglet.window.FPSDisplay(self)
@@ -152,6 +155,7 @@ class EnvRenderer(pyglet.window.Window):
         map_mask_flat = map_mask.flatten()
         map_points = PLOT_SCALE * map_coords[:, map_mask_flat].T
         for i in range(map_points.shape[0]):
+            # self.batch.add(1, GL_POINTS, None, ('v3f/stream', [map_points[i, 0], map_points[i, 1], map_points[i, 2]]), ('c3B/stream', [0, 0, 0]))
             self.batch.add(1, GL_POINTS, None, ('v3f/stream', [map_points[i, 0], map_points[i, 1], map_points[i, 2]]), ('c3B/stream', [183, 193, 222]))
         self.map_points = map_points
 
