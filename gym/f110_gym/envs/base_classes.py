@@ -313,7 +313,7 @@ class RaceCar(object):
             # steering angle velocity input to steering velocity acceleration input
             accl, sv = pid(drive, steer, self.state[3], self.state[2], self.params['sv_max'], self.params['a_max'],
                         self.params['v_max'], self.params['v_min'])
-
+        
         if self.drive_control_mode == 'acc':
             if drive > self.params['a_max']:
                 accl = self.params['a_max']
@@ -324,7 +324,6 @@ class RaceCar(object):
 
         if self.steering_control_mode == 'vel':
             sv = steer
-
         integration_method = 'LSODA_old'  # 'LSODA'  'euler' 'LSODA_old' 'RK45'
 
         # update physics, get RHS of diff'eq
@@ -662,17 +661,17 @@ class Simulator(object):
                         'linear_vels_y': [],
                         'ang_vels_z': [],
                         'collisions': self.collisions,
-                        'x1': [],
-                        'x2': [],
-                        'x3': [],
-                        'x4': [],
-                        'x5': [],
-                        'x6': [],
-                        'x11': [],
-                        'x12': [],
-                        'x13': [],
-                        'x16': [],
-                        'x21': []}
+                        'x1': [], # x-pos
+                        'x2': [], # y-pos
+                        'x3': [], # steer
+                        'x4': [], # vx
+                        'x5': [], # yaw angle
+                        'x6': [], # yaw rate
+                        'x11': [], # vy
+                        'x12': [], # height
+                        'x13': [], # vz
+                        'x16': [], # vy front
+                        'x21': []} # vy rear
         for i, agent in enumerate(self.agents):
             observations['scans'].append(agent_scans[i])
             observations['poses_x'].append(agent.state[0])
