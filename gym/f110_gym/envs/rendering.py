@@ -45,6 +45,7 @@ ZOOM_OUT_FACTOR = 1/ZOOM_IN_FACTOR
 
 import os
 PLOT_SCALE = 10. if os.getenv('F110GYM_PLOT_SCALE') == None else float(os.getenv('F110GYM_PLOT_SCALE'))
+# print('PLOT_SCALE', PLOT_SCALE)
 
 # vehicle shape constants
 CAR_LENGTH = 0.58 * 7
@@ -72,7 +73,7 @@ class EnvRenderer(pyglet.window.Window):
         super().__init__(width, height, config=conf, resizable=True, vsync=False, *args, **kwargs)
 
         # gl init
-        glClearColor(150/255, 150/255, 150/255, 1.)
+        glClearColor(255/255, 255/255, 255/255, 1.)
         # glClearColor(9/255, 32/255, 87/255, 1.)
 
         # initialize camera values
@@ -100,7 +101,7 @@ class EnvRenderer(pyglet.window.Window):
         self.score_label = pyglet.text.Label(
                 'Lap Time: {laptime:.2f}, Ego Lap Count: {count:.0f}'.format(
                     laptime=0.0, count=0.0),
-                font_size=36,
+                font_size=24,
                 x=0,
                 y=-800,
                 anchor_x='center',
@@ -325,7 +326,8 @@ class EnvRenderer(pyglet.window.Window):
                 if i == self.ego_idx:
                     vertices_np = get_vertices(np.array([0., 0., 0.]), CAR_LENGTH, CAR_WIDTH)
                     vertices = list(vertices_np.flatten())
-                    car = self.batch.add(4, GL_QUADS, None, ('v2f', vertices), ('c3B', [172, 97, 185, 172, 97, 185, 172, 97, 185, 172, 97, 185]))
+                    # car = self.batch.add(4, GL_QUADS, None, ('v2f', vertices), ('c3B', [172, 97, 185, 172, 97, 185, 172, 97, 185, 172, 97, 185]))
+                    car = self.batch.add(4, GL_QUADS, None, ('v2f', vertices), ('c3B', [253,55,84]*4))
                     self.cars.append(car)
                 else:
                     vertices_np = get_vertices(np.array([0., 0., 0.]), CAR_LENGTH, CAR_WIDTH)
