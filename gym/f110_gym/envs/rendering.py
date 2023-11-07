@@ -50,6 +50,8 @@ PLOT_SCALE = 10. if os.getenv('F110GYM_PLOT_SCALE') == None else float(os.getenv
 # vehicle shape constants
 CAR_LENGTH = 0.58 * 7
 CAR_WIDTH = 0.31 * 7
+BACKGROUND_COLOR = [25, 25, 25]
+WAYPOINT_COLOR = [255, 255, 255]
 
 class EnvRenderer(pyglet.window.Window):
     """
@@ -73,7 +75,7 @@ class EnvRenderer(pyglet.window.Window):
         super().__init__(width, height, config=conf, resizable=True, vsync=False, *args, **kwargs)
 
         # gl init
-        glClearColor(255/255, 255/255, 255/255, 1.)
+        glClearColor(BACKGROUND_COLOR[0]/255, BACKGROUND_COLOR[1]/255, BACKGROUND_COLOR[2]/255, 1.)
         # glClearColor(9/255, 32/255, 87/255, 1.)
 
         # initialize camera values
@@ -109,7 +111,7 @@ class EnvRenderer(pyglet.window.Window):
                 # width=0.01,
                 # height=0.01,
                 # color=(255, 255, 255, 255),
-                color=(0, 0, 0, 255),
+                color=(WAYPOINT_COLOR[0], WAYPOINT_COLOR[1], WAYPOINT_COLOR[2], 255),
                 batch=self.batch)
 
         self.fps_display = pyglet.window.FPSDisplay(self)
