@@ -45,11 +45,11 @@ ZOOM_OUT_FACTOR = 1/ZOOM_IN_FACTOR
 
 import os
 PLOT_SCALE = 10. if os.getenv('F110GYM_PLOT_SCALE') == None else float(os.getenv('F110GYM_PLOT_SCALE'))
-# print('PLOT_SCALE', PLOT_SCALE)
+print('PLOT_SCALE', PLOT_SCALE)
 
 # vehicle shape constants
-CAR_LENGTH = 0.58 * 7
-CAR_WIDTH = 0.31 * 7
+CAR_LENGTH = 0.58 * 70 / PLOT_SCALE
+CAR_WIDTH = 0.31 * 70 / PLOT_SCALE
 BACKGROUND_COLOR = [25, 25, 25]
 WAYPOINT_COLOR = [255, 255, 255]
 
