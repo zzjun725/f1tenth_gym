@@ -528,6 +528,9 @@ class Simulator(object):
                 agent = RaceCar(self.model, self.steering_control_mode, self.drive_control_mode, params, self.seed,
                                 time_step=self.time_step)
                 self.agents.append(agent)
+                
+        # self.observations = self.get_observations(np.zeros((self.num_agents, 2)))
+        self.observations = None
 
     def set_map(self, map_path, map_ext):
         """
@@ -597,11 +600,12 @@ class Simulator(object):
             # update each agent's pose
             agent.update_pose(control_inputs[i, 0], control_inputs[i, 1])
 
-        observations = self.get_observations()
+        observations = self.get_observations(control_inputs)
+        self.observations = observations
 
         return observations
 
-    def get_observations(self):
+    def get_observations(self, control_inputs):
         # get_current_scan
 
         agent_scans = []
@@ -671,7 +675,9 @@ class Simulator(object):
                         'x12': [], # height
                         'x13': [], # vz
                         'x16': [], # vy front
-                        'x21': []} # vy rear
+                        'x21': [], # vy rear
+                        'control0': [],
+                        'control1': []}
         for i, agent in enumerate(self.agents):
             observations['scans'].append(agent_scans[i])
             observations['poses_x'].append(agent.state[0])
@@ -691,6 +697,8 @@ class Simulator(object):
             observations['x13'].append(agent.state[12])
             observations['x16'].append(agent.state[15])
             observations['x21'].append(agent.state[20])
+            observations['control0'].append(control_inputs[i, 0])
+            observations['control1'].append(control_inputs[i, 1])
 
 
         return observations

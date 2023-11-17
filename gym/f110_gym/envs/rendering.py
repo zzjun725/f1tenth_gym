@@ -345,3 +345,4 @@ class EnvRenderer(pyglet.window.Window):
         self.poses = poses
 
         self.score_label.text = 'Lap Time: {laptime:.2f}, Ego Lap Count: {count:.0f}'.format(laptime=obs['lap_times'][0], count=obs['lap_counts'][obs['ego_idx']])
+        # self.score_label.text = 'C0: {c0:.2f}, C1: {c1:.2f}'.format(c0=obs['control0'][0], c1=obs['control1'][0])

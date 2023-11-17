@@ -47,8 +47,8 @@ from pyglet import gl
 # rendering
 # VIDEO_W = 600
 # VIDEO_H = 400
-WINDOW_W = 2000
-WINDOW_H = 1600
+WINDOW_W = 1500
+WINDOW_H = 1200
 
 class F110Env(gym.Env):
     """
@@ -370,10 +370,11 @@ class F110Env(gym.Env):
             self.lap_counts[i] = self.toggle_list[i] // 2
             if self.toggle_list[i] < 4:
                 self.lap_times[i] = self.current_time
+            # print('toggle_list', self.toggle_list[i])
         
         done = (self.collisions[self.ego_idx]) or np.all(self.toggle_list >= 4)
         
-        return done, self.toggle_list >= 4
+        return done, self.toggle_list >= 3
 
     def _update_state(self, obs_dict):
         """
@@ -471,20 +472,23 @@ class F110Env(gym.Env):
     def get_observations(self):
         # call simulation step
         # obs = self.sim.step(action)
-        obs = self.sim.get_observations()
+        obs = self.sim.observations
+        if obs is None:
+            obs = self.sim.get_observations(np.zeros((self.sim.num_agents, 2)))
         obs['lap_times'] = self.lap_times
         obs['lap_counts'] = self.lap_counts
 
         F110Env.current_obs = obs
 
-        self.render_obs = {
-            'ego_idx': obs['ego_idx'],
-            'poses_x': obs['poses_x'],
-            'poses_y': obs['poses_y'],
-            'poses_theta': obs['poses_theta'],
-            'lap_times': obs['lap_times'],
-            'lap_counts': obs['lap_counts']
-        }
+        self.render_obs = obs
+        # self.render_obs = {
+        #     'ego_idx': obs['ego_idx'],
+        #     'poses_x': obs['poses_x'],
+        #     'poses_y': obs['poses_y'],
+        #     'poses_theta': obs['poses_theta'],
+        #     'lap_times': obs['lap_times'],
+        #     'lap_counts': obs['lap_counts']
+        # }
 
         # update data member
         self._update_state(obs)
