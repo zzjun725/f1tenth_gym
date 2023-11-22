@@ -213,13 +213,17 @@ class RaceCar(object):
             self.state[6] = beta
         elif self.model == 'MB':
             params_array = np.array(list(self.params.values()))
-            self.state = init_mb(np.array([pose[0], pose[1],
-                                           steering_angle, velocity,
-                                           pose[2], yaw_rate,
-                                           beta]), params_array)
+            
+            if len(pose) == 29:
+                self.state = pose
+            else:
+                self.state = init_mb(np.array([pose[0], pose[1],
+                                            steering_angle, velocity,
+                                            pose[2], yaw_rate,
+                                            beta]), params_array)
         self.steer_buffer = np.empty((0,))
         # reset scan random generator
-        self.scan_rng = np.random.default_rng(seed=self.seed)
+        # self.scan_rng = np.random.default_rng(seed=self.seed)
 
     def ray_cast_agents(self, scan):
         """
@@ -677,7 +681,8 @@ class Simulator(object):
                         'x16': [], # vy front
                         'x21': [], # vy rear
                         'control0': [],
-                        'control1': []}
+                        'control1': [],
+                        'state': []}
         for i, agent in enumerate(self.agents):
             observations['scans'].append(agent_scans[i])
             observations['poses_x'].append(agent.state[0])
@@ -697,6 +702,7 @@ class Simulator(object):
             observations['x13'].append(agent.state[12])
             observations['x16'].append(agent.state[15])
             observations['x21'].append(agent.state[20])
+            observations['state'].append(agent.state)
             observations['control0'].append(control_inputs[i, 0])
             observations['control1'].append(control_inputs[i, 1])
 
@@ -717,10 +723,15 @@ class Simulator(object):
         if initial_states.shape[0] != self.num_agents:
             raise ValueError('Number of poses for reset does not match number of agents.')
 
-        # loop over poses to reset
-        for i in range(self.num_agents):
-            self.agents[i].reset(initial_states[i, [0, 1, 2]],
-                                 steering_angle=initial_states[i, 3],
-                                 velocity=initial_states[i, 4],
-                                 yaw_rate=initial_states[i, 5],
-                                 beta=initial_states[i, 6])
+        if initial_states.shape[1] == 29:
+            for i in range(self.num_agents):
+                self.agents[i].reset(initial_states[i])
+
+        else:
+            # loop over poses to reset
+            for i in range(self.num_agents):
+                self.agents[i].reset(initial_states[i, [0, 1, 2]],
+                                    steering_angle=initial_states[i, 3],
+                                    velocity=initial_states[i, 4],
+                                    yaw_rate=initial_states[i, 5],
+                                    beta=initial_states[i, 6])
