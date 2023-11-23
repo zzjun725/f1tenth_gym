@@ -204,6 +204,8 @@ class RaceCar(object):
         self.in_collision = False
         # clear state
         if self.model == 'dynamic_ST':
+            # print('pose', pose)
+            # self.state = pose
             self.state = np.zeros((7,))
             self.state[0:2] = pose[0:2]
             self.state[2] = steering_angle
@@ -223,7 +225,7 @@ class RaceCar(object):
                                             beta]), params_array)
         self.steer_buffer = np.empty((0,))
         # reset scan random generator
-        # self.scan_rng = np.random.default_rng(seed=self.seed)
+        self.scan_rng = np.random.default_rng(seed=self.seed)
 
     def ray_cast_agents(self, scan):
         """
@@ -618,8 +620,8 @@ class Simulator(object):
         # looping over agents
         for i, agent in enumerate(self.agents):
             # update each agent's pose
-            current_scan = agent.get_current_scan()
-            agent_scans.append(current_scan)
+            # NOTE: current_scan = agent.get_current_scan()
+            # NOTE: agent_scans.append(current_scan)
 
             # update sim's information of agent poses
             self.agent_poses[i, :] = np.append(agent.state[0:2], agent.state[4])
@@ -629,11 +631,11 @@ class Simulator(object):
 
         for i, agent in enumerate(self.agents):
             # update agent's information on other agents
-            opp_poses = np.concatenate((self.agent_poses[0:i, :], self.agent_poses[i + 1:, :]), axis=0)
-            agent.update_opp_poses(opp_poses)
+            # NOTE: opp_poses = np.concatenate((self.agent_poses[0:i, :], self.agent_poses[i + 1:, :]), axis=0)
+            # NOTE: agent.update_opp_poses(opp_poses)
 
             # update each agent's current scan based on other agents
-            agent.update_scan(agent_scans, i)
+            # NOTE: agent.update_scan(agent_scans, i)
 
             # update agent collision with environment
             if agent.in_collision:
@@ -685,7 +687,7 @@ class Simulator(object):
                         'control1': [],
                         'state': []}
         for i, agent in enumerate(self.agents):
-            observations['scans'].append(agent_scans[i])
+            # observations['scans'].append(agent_scans[i])
             observations['poses_x'].append(agent.state[0])
             observations['poses_y'].append(agent.state[1])
             observations['poses_theta'].append(agent.state[4])
@@ -723,7 +725,7 @@ class Simulator(object):
 
         if initial_states.shape[0] != self.num_agents:
             raise ValueError('Number of poses for reset does not match number of agents.')
-
+        
         if initial_states.shape[1] == 29:
             for i in range(self.num_agents):
                 self.agents[i].reset(initial_states[i])
