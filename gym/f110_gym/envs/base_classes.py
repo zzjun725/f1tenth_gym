@@ -304,14 +304,15 @@ class RaceCar(object):
         # state is [x, y, steer_angle, vel, yaw_angle, yaw_rate, slip_angle]
 
         # steering delay
-        steer = 0.
-        if self.steer_buffer.shape[0] < self.steer_buffer_size:
-            steer = 0.
-            self.steer_buffer = np.append(raw_steer, self.steer_buffer)
-        else:
-            steer = self.steer_buffer[-1]
-            self.steer_buffer = self.steer_buffer[:-1]
-            self.steer_buffer = np.append(raw_steer, self.steer_buffer)
+        # steer = 0.
+        # if self.steer_buffer.shape[0] < self.steer_buffer_size:
+        #     steer = 0.
+        #     self.steer_buffer = np.append(raw_steer, self.steer_buffer)
+        # else:
+        #     steer = self.steer_buffer[-1]
+        #     self.steer_buffer = self.steer_buffer[:-1]
+        #     self.steer_buffer = np.append(raw_steer, self.steer_buffer)
+        steer = raw_steer
 
         if self.steering_control_mode != 'vel' or self.drive_control_mode != 'acc':
             # steering angle velocity input to steering velocity acceleration input
@@ -675,11 +676,11 @@ class Simulator(object):
                         'x4': [], # vx
                         'x5': [], # yaw angle
                         'x6': [], # yaw rate
-                        'x11': [], # vy
-                        'x12': [], # height
-                        'x13': [], # vz
-                        'x16': [], # vy front
-                        'x21': [], # vy rear
+                        # 'x11': [], # vy
+                        # 'x12': [], # height
+                        # 'x13': [], # vz
+                        # 'x16': [], # vy front
+                        # 'x21': [], # vy rear
                         'control0': [],
                         'control1': [],
                         'state': []}
@@ -697,11 +698,11 @@ class Simulator(object):
             observations['x4'].append(agent.state[3])
             observations['x5'].append(agent.state[4])
             observations['x6'].append(agent.state[5])
-            observations['x11'].append(agent.state[10])
-            observations['x12'].append(agent.state[11])
-            observations['x13'].append(agent.state[12])
-            observations['x16'].append(agent.state[15])
-            observations['x21'].append(agent.state[20])
+            # observations['x11'].append(agent.state[10])
+            # observations['x12'].append(agent.state[11])
+            # observations['x13'].append(agent.state[12])
+            # observations['x16'].append(agent.state[15])
+            # observations['x21'].append(agent.state[20])
             observations['state'].append(agent.state)
             observations['control0'].append(control_inputs[i, 0])
             observations['control1'].append(control_inputs[i, 1])
