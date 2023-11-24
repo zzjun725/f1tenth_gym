@@ -738,3 +738,4 @@ class Simulator(object):
                                     velocity=initial_states[i, 4],
                                     yaw_rate=initial_states[i, 5],
                                     beta=initial_states[i, 6])
+        self.observations = None
