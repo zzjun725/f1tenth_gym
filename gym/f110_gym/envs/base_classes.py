@@ -204,6 +204,8 @@ class RaceCar(object):
         self.in_collision = False
         # clear state
         if self.model == 'dynamic_ST':
+            # print('pose', pose)
+            # self.state = pose
             self.state = np.zeros((7,))
             self.state[0:2] = pose[0:2]
             self.state[2] = steering_angle
@@ -213,10 +215,14 @@ class RaceCar(object):
             self.state[6] = beta
         elif self.model == 'MB':
             params_array = np.array(list(self.params.values()))
-            self.state = init_mb(np.array([pose[0], pose[1],
-                                           steering_angle, velocity,
-                                           pose[2], yaw_rate,
-                                           beta]), params_array)
+            
+            if len(pose) == 29:
+                self.state = pose
+            else:
+                self.state = init_mb(np.array([pose[0], pose[1],
+                                            steering_angle, velocity,
+                                            pose[2], yaw_rate,
+                                            beta]), params_array)
         self.steer_buffer = np.empty((0,))
         # reset scan random generator
         self.scan_rng = np.random.default_rng(seed=self.seed)
@@ -300,19 +306,21 @@ class RaceCar(object):
         # state is [x, y, steer_angle, vel, yaw_angle, yaw_rate, slip_angle]
 
         # steering delay
-        steer = 0.
-        if self.steer_buffer.shape[0] < self.steer_buffer_size:
-            steer = 0.
-            self.steer_buffer = np.append(raw_steer, self.steer_buffer)
-        else:
-            steer = self.steer_buffer[-1]
-            self.steer_buffer = self.steer_buffer[:-1]
-            self.steer_buffer = np.append(raw_steer, self.steer_buffer)
+        # steer = 0.
+        # if self.steer_buffer.shape[0] < self.steer_buffer_size:
+        #     steer = 0.
+        #     self.steer_buffer = np.append(raw_steer, self.steer_buffer)
+        # else:
+        #     steer = self.steer_buffer[-1]
+        #     self.steer_buffer = self.steer_buffer[:-1]
+        #     self.steer_buffer = np.append(raw_steer, self.steer_buffer)
+        steer = raw_steer
 
-        # steering angle velocity input to steering velocity acceleration input
-        accl, sv = pid(drive, steer, self.state[3], self.state[2], self.params['sv_max'], self.params['a_max'],
-                       self.params['v_max'], self.params['v_min'])
-
+        if self.steering_control_mode != 'vel' or self.drive_control_mode != 'acc':
+            # steering angle velocity input to steering velocity acceleration input
+            accl, sv = pid(drive, steer, self.state[3], self.state[2], self.params['sv_max'], self.params['a_max'],
+                        self.params['v_max'], self.params['v_min'])
+        
         if self.drive_control_mode == 'acc':
             if drive > self.params['a_max']:
                 accl = self.params['a_max']
@@ -323,7 +331,6 @@ class RaceCar(object):
 
         if self.steering_control_mode == 'vel':
             sv = steer
-
         integration_method = 'LSODA_old'  # 'LSODA'  'euler' 'LSODA_old' 'RK45'
 
         # update physics, get RHS of diff'eq
@@ -528,6 +535,9 @@ class Simulator(object):
                 agent = RaceCar(self.model, self.steering_control_mode, self.drive_control_mode, params, self.seed,
                                 time_step=self.time_step)
                 self.agents.append(agent)
+                
+        # self.observations = self.get_observations(np.zeros((self.num_agents, 2)))
+        self.observations = None
 
     def set_map(self, map_path, map_ext):
         """
@@ -597,11 +607,12 @@ class Simulator(object):
             # update each agent's pose
             agent.update_pose(control_inputs[i, 0], control_inputs[i, 1])
 
-        observations = self.get_observations()
+        observations = self.get_observations(control_inputs)
+        self.observations = observations
 
         return observations
 
-    def get_observations(self):
+    def get_observations(self, control_inputs):
         # get_current_scan
 
         agent_scans = []
@@ -609,8 +620,8 @@ class Simulator(object):
         # looping over agents
         for i, agent in enumerate(self.agents):
             # update each agent's pose
-            current_scan = agent.get_current_scan()
-            agent_scans.append(current_scan)
+            # NOTE: current_scan = agent.get_current_scan()
+            # NOTE: agent_scans.append(current_scan)
 
             # update sim's information of agent poses
             self.agent_poses[i, :] = np.append(agent.state[0:2], agent.state[4])
@@ -620,11 +631,11 @@ class Simulator(object):
 
         for i, agent in enumerate(self.agents):
             # update agent's information on other agents
-            opp_poses = np.concatenate((self.agent_poses[0:i, :], self.agent_poses[i + 1:, :]), axis=0)
-            agent.update_opp_poses(opp_poses)
+            # NOTE: opp_poses = np.concatenate((self.agent_poses[0:i, :], self.agent_poses[i + 1:, :]), axis=0)
+            # NOTE: agent.update_opp_poses(opp_poses)
 
             # update each agent's current scan based on other agents
-            agent.update_scan(agent_scans, i)
+            # NOTE: agent.update_scan(agent_scans, i)
 
             # update agent collision with environment
             if agent.in_collision:
@@ -661,30 +672,42 @@ class Simulator(object):
                         'linear_vels_y': [],
                         'ang_vels_z': [],
                         'collisions': self.collisions,
-                        'x3': [],
-                        'x4': [],
-                        'x6': [],
-                        'x11': [],
-                        'x12': [],
-                        'x13': [],
-                        'x16': [],
-                        'x21': []}
+                        'x1': [], # x-pos
+                        'x2': [], # y-pos
+                        'x3': [], # steer
+                        'x4': [], # vx
+                        'x5': [], # yaw angle
+                        'x6': [], # yaw rate
+                        # 'x11': [], # vy
+                        # 'x12': [], # height
+                        # 'x13': [], # vz
+                        # 'x16': [], # vy front
+                        # 'x21': [], # vy rear
+                        'control0': [],
+                        'control1': [],
+                        'state': []}
         for i, agent in enumerate(self.agents):
-            observations['scans'].append(agent_scans[i])
+            # observations['scans'].append(agent_scans[i])
             observations['poses_x'].append(agent.state[0])
             observations['poses_y'].append(agent.state[1])
             observations['poses_theta'].append(agent.state[4])
             observations['linear_vels_x'].append(agent.state[3])
             observations['linear_vels_y'].append(0.)
             observations['ang_vels_z'].append(agent.state[5])
+            observations['x1'].append(agent.state[0])
+            observations['x2'].append(agent.state[1])
             observations['x3'].append(agent.state[2])
             observations['x4'].append(agent.state[3])
+            observations['x5'].append(agent.state[4])
             observations['x6'].append(agent.state[5])
-            observations['x11'].append(agent.state[10])
-            observations['x12'].append(agent.state[11])
-            observations['x13'].append(agent.state[12])
-            observations['x16'].append(agent.state[15])
-            observations['x21'].append(agent.state[20])
+            # observations['x11'].append(agent.state[10])
+            # observations['x12'].append(agent.state[11])
+            # observations['x13'].append(agent.state[12])
+            # observations['x16'].append(agent.state[15])
+            # observations['x21'].append(agent.state[20])
+            observations['state'].append(agent.state)
+            observations['control0'].append(control_inputs[i, 0])
+            observations['control1'].append(control_inputs[i, 1])
 
 
         return observations
@@ -702,11 +725,17 @@ class Simulator(object):
 
         if initial_states.shape[0] != self.num_agents:
             raise ValueError('Number of poses for reset does not match number of agents.')
+        
+        if initial_states.shape[1] == 29:
+            for i in range(self.num_agents):
+                self.agents[i].reset(initial_states[i])
 
-        # loop over poses to reset
-        for i in range(self.num_agents):
-            self.agents[i].reset(initial_states[i, [0, 1, 2]],
-                                 steering_angle=initial_states[i, 3],
-                                 velocity=initial_states[i, 4],
-                                 yaw_rate=initial_states[i, 5],
-                                 beta=initial_states[i, 6])
+        else:
+            # loop over poses to reset
+            for i in range(self.num_agents):
+                self.agents[i].reset(initial_states[i, [0, 1, 2]],
+                                    steering_angle=initial_states[i, 3],
+                                    velocity=initial_states[i, 4],
+                                    yaw_rate=initial_states[i, 5],
+                                    beta=initial_states[i, 6])
+        self.observations = None

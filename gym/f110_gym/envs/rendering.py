@@ -41,13 +41,17 @@ from f110_gym.envs.collision_models import get_vertices
 
 # zooming constants
 ZOOM_IN_FACTOR = 1.2
-# ZOOM_IN_FACTOR = 10.
 ZOOM_OUT_FACTOR = 1/ZOOM_IN_FACTOR
 
-PLOT_SCALE = 10.
+import os
+PLOT_SCALE = 10. if os.getenv('F110GYM_PLOT_SCALE') == None else float(os.getenv('F110GYM_PLOT_SCALE'))
+print('PLOT_SCALE', PLOT_SCALE)
+
 # vehicle shape constants
-CAR_LENGTH = 5.8
-CAR_WIDTH = 3.1
+CAR_LENGTH = 0.58 * 70 / PLOT_SCALE
+CAR_WIDTH = 0.31 * 70 / PLOT_SCALE
+BACKGROUND_COLOR = [25, 25, 25]
+WAYPOINT_COLOR = [255, 255, 255]
 
 class EnvRenderer(pyglet.window.Window):
     """
@@ -71,8 +75,8 @@ class EnvRenderer(pyglet.window.Window):
         super().__init__(width, height, config=conf, resizable=True, vsync=False, *args, **kwargs)
 
         # gl init
-        # glClearColor(255/255, 0/255, 0/255, 1.)
-        glClearColor(9/255, 32/255, 87/255, 1.)
+        glClearColor(BACKGROUND_COLOR[0]/255, BACKGROUND_COLOR[1]/255, BACKGROUND_COLOR[2]/255, 1.)
+        # glClearColor(9/255, 32/255, 87/255, 1.)
 
         # initialize camera values
         self.left = -width/2
@@ -99,14 +103,15 @@ class EnvRenderer(pyglet.window.Window):
         self.score_label = pyglet.text.Label(
                 'Lap Time: {laptime:.2f}, Ego Lap Count: {count:.0f}'.format(
                     laptime=0.0, count=0.0),
-                font_size=36,
+                font_size=24,
                 x=0,
                 y=-800,
                 anchor_x='center',
                 anchor_y='center',
                 # width=0.01,
                 # height=0.01,
-                color=(255, 255, 255, 255),
+                # color=(255, 255, 255, 255),
+                color=(WAYPOINT_COLOR[0], WAYPOINT_COLOR[1], WAYPOINT_COLOR[2], 255),
                 batch=self.batch)
 
         self.fps_display = pyglet.window.FPSDisplay(self)
@@ -153,6 +158,7 @@ class EnvRenderer(pyglet.window.Window):
         map_mask_flat = map_mask.flatten()
         map_points = PLOT_SCALE * map_coords[:, map_mask_flat].T
         for i in range(map_points.shape[0]):
+            # self.batch.add(1, GL_POINTS, None, ('v3f/stream', [map_points[i, 0], map_points[i, 1], map_points[i, 2]]), ('c3B/stream', [0, 0, 0]))
             self.batch.add(1, GL_POINTS, None, ('v3f/stream', [map_points[i, 0], map_points[i, 1], map_points[i, 2]]), ('c3B/stream', [183, 193, 222]))
         self.map_points = map_points
 
@@ -322,7 +328,8 @@ class EnvRenderer(pyglet.window.Window):
                 if i == self.ego_idx:
                     vertices_np = get_vertices(np.array([0., 0., 0.]), CAR_LENGTH, CAR_WIDTH)
                     vertices = list(vertices_np.flatten())
-                    car = self.batch.add(4, GL_QUADS, None, ('v2f', vertices), ('c3B', [172, 97, 185, 172, 97, 185, 172, 97, 185, 172, 97, 185]))
+                    # car = self.batch.add(4, GL_QUADS, None, ('v2f', vertices), ('c3B', [172, 97, 185, 172, 97, 185, 172, 97, 185, 172, 97, 185]))
+                    car = self.batch.add(4, GL_QUADS, None, ('v2f', vertices), ('c3B', [253,55,84]*4))
                     self.cars.append(car)
                 else:
                     vertices_np = get_vertices(np.array([0., 0., 0.]), CAR_LENGTH, CAR_WIDTH)
@@ -338,3 +345,4 @@ class EnvRenderer(pyglet.window.Window):
         self.poses = poses
 
         self.score_label.text = 'Lap Time: {laptime:.2f}, Ego Lap Count: {count:.0f}'.format(laptime=obs['lap_times'][0], count=obs['lap_counts'][obs['ego_idx']])
+        # self.score_label.text = 'C0: {c0:.2f}, C1: {c1:.2f}'.format(c0=obs['control0'][0], c1=obs['control1'][0])
