@@ -28,7 +28,7 @@ Author: Hongrui Zheng
 import gymnasium as gym
 
 from .action import (CarAction,
-                                  from_single_to_multi_action_space)
+                     from_single_to_multi_action_space)
 from .integrator import IntegratorType
 from .rendering import make_renderer
 
@@ -40,7 +40,6 @@ from .observation import observation_factory
 from .reset import make_reset_fn
 from .track import Track
 from .utils import deep_update
-
 
 # others
 import numpy as np
@@ -156,7 +155,7 @@ class F110Env(gym.Env):
         self.agent_ids = [f"agent_{i}" for i in range(self.num_agents)]
 
         assert (
-            "type" in self.observation_config
+                "type" in self.observation_config
         ), "observation_config must contain 'type' key"
         self.observation_type = observation_factory(env=self, **self.observation_config)
         self.observation_space = self.observation_type.space()
@@ -276,7 +275,7 @@ class F110Env(gym.Env):
         temp_y[idx2] = -right_t - temp_y[idx2]
         temp_y[np.invert(np.logical_or(idx1, idx2))] = 0
 
-        dist2 = delta_pt[0, :] ** 2 + temp_y**2
+        dist2 = delta_pt[0, :] ** 2 + temp_y ** 2
         closes = dist2 <= 0.1
         for i in range(self.num_agents):
             if closes[i] and not self.near_starts[i]:
