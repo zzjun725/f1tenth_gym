@@ -13,7 +13,7 @@ def test_and_plot():
     plt.plot(centerline[:,0], centerline[:,1], 'ro-', label='Centerline')
 
     # Generate some arbitrary Cartesian points to convert to Frenet
-    cartesian_points = centerline[:200:10, :2]
+    cartesian_points = centerline[::50, :2]
     cartesian_points = cartesian_points + np.random.uniform(-0.5, 0.5, cartesian_points.shape)  # Every 10th point
 
     # Convert Cartesian points to Frenet and plot

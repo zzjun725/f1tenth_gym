@@ -386,6 +386,7 @@ class Simulator(object):
         model=DynamicModel.ST,
         time_step=0.01,
         ego_idx=0,
+        scan_beams=1080,
     ):
         """
         Init function
@@ -424,6 +425,7 @@ class Simulator(object):
                 integrator=integrator,
                 model=model,
                 action_type=action_type,
+                num_beams=scan_beams,
             )
             self.agents.append(car)
 

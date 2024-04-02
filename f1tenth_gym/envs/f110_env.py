@@ -103,6 +103,9 @@ class F110Env(gym.Env):
         self.model = DynamicModel.from_string(self.config["model"])
         self.observation_config = self.config["observation_config"]
         self.action_type = CarAction(self.config["control_input"], params=self.params)
+        # [zhijunz] Add max_steps which affects the truncation of the episode
+        self.max_episode_steps = self.config.get("max_steps", 500)
+        self.episode_steps = 0
 
         # radius to consider done
         self.start_thresh = 0.5  # 10cm
@@ -141,6 +144,7 @@ class F110Env(gym.Env):
             integrator=self.integrator,
             model=self.model,
             action_type=self.action_type,
+            scan_beams=self.config.get("scan_beams", 1080)
         )
         self.sim.set_map(self.map)
 
@@ -343,7 +347,8 @@ class F110Env(gym.Env):
 
         # check done
         done, toggle_list = self._check_done()
-        truncated = False
+        self.episode_steps += 1
+        truncated = True if self.episode_steps >= self.max_episode_steps else False
         info = {"checkpoint_done": toggle_list}
 
         return obs, reward, done, truncated, info
@@ -383,7 +388,7 @@ class F110Env(gym.Env):
         assert isinstance(poses, np.ndarray) and poses.shape == (
             self.num_agents,
             3,
-        ), "Initial poses must be a numpy array of shape (num_agents, 3)"
+        ), f"Initial poses must be a numpy array of shape ({self.num_agents}, 3)"
 
         self.start_xs = poses[:, 0]
         self.start_ys = poses[:, 1]
@@ -406,7 +411,9 @@ class F110Env(gym.Env):
 
         # get no input observations
         action = np.zeros((self.num_agents, 2))
-        obs, _, _, _, info = self.step(action)
+        obs, _, done, _, info = self.step(action)
+        # [zhijunz] include done in info
+        info["done"] = done
 
         return obs, info
 

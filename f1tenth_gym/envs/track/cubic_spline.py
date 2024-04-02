@@ -8,6 +8,7 @@ import math
 import numpy as np
 from scipy.spatial import distance as ssd
 import scipy.optimize as so
+from scipy.interpolate import CubicSpline
 
 
 class CubicSpline1D:
@@ -292,3 +293,6 @@ class CubicSpline2D:
         tangent = self._calc_tangent(s)
         normal = np.array([-tangent[1], tangent[0]])
         return normal
+
+
+
