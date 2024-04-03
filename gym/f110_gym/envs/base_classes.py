@@ -498,7 +498,7 @@ class Simulator(object):
     """
 
     def __init__(self, model, steering_control_mode, drive_control_mode, params, num_agents, seed, time_step=0.01,
-                 ego_idx=0):
+                 ego_idx=0, scan_beam=1080):
         """
         Init function
 
@@ -530,11 +530,11 @@ class Simulator(object):
         for i in range(self.num_agents):
             if i == ego_idx:
                 ego_car = RaceCar(self.model, self.steering_control_mode, self.drive_control_mode, params, self.seed,
-                                  time_step=self.time_step, is_ego=True)
+                                  time_step=self.time_step, is_ego=True, num_beams=scan_beam)
                 self.agents.append(ego_car)
             else:
                 agent = RaceCar(self.model, self.steering_control_mode, self.drive_control_mode, params, self.seed,
-                                time_step=self.time_step)
+                                time_step=self.time_step, is_ego=False, num_beams=scan_beam)
                 self.agents.append(agent)
                 
         # self.observations = self.get_observations(np.zeros((self.num_agents, 2)))
