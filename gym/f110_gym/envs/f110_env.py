@@ -97,56 +97,37 @@ class F110Env(gym.Env):
     current_obs = None
     render_callbacks = []
 
-    def __init__(self, **kwargs):        
+    def __init__(self, env_config):
         # kwargs extraction
+        self.seed = env_config["seed"]
+        self.map_name = env_config["map"]
+        self.map_ext = env_config["map_ext"]
+        self.map_path = os.path.dirname(
+            os.path.abspath(__file__)) + '/maps/' + f"{self.map_name}/" + f"{self.map_name}.yaml"
+        self.model = env_config.get("model", "dynamic_ST")
+        assert self.model in ['dynamic_ST', 'MB']
+        self.num_agents = env_config["num_agents"]
+        self.drive_control_mode = env_config.get("drive_control_mode", "vel")
+        assert self.drive_control_mode in ['vel', 'acc']
+        self.steering_control_mode = env_config.get("steering_control_mode", "angle")
+        assert self.steering_control_mode in ['angle', 'vel']
+        self.ego_idx = 0
+        self.timestep = 0.01
+        self.max_episode_steps = env_config["max_episode_steps"]
+        self.episode_step = 0
+        self.scan_beams = env_config["scan_beams"]
         try:
-            self.seed = kwargs['seed']
+            self.params = env_config['params']
         except:
-            self.seed = 12345
-        try:
-            self.map_name = kwargs['map']
-            # different default maps
-            if self.map_name == 'berlin':
-                self.map_path = os.path.dirname(os.path.abspath(__file__)) + '/maps/berlin.yaml'
-            elif self.map_name == 'skirk':
-                self.map_path = os.path.dirname(os.path.abspath(__file__)) + '/maps/skirk.yaml'
-            elif self.map_name == 'levine':
-                self.map_path = os.path.dirname(os.path.abspath(__file__)) + '/maps/levine.yaml'
-            else:
-                self.map_path = self.map_name + '.yaml'
-        except:
-            self.map_path = os.path.dirname(os.path.abspath(__file__)) + '/maps/vegas.yaml'
-
-        try:
-            self.map_ext = kwargs['map_ext']
-        except:
-            self.map_ext = '.png'
-
-        try:
-            self.params = kwargs['params']
-        except:
-            self.params = {'mu': 1.0489, 'C_Sf': 4.718, 'C_Sr': 5.4562, 'lf': 0.15875, 'lr': 0.17145, 'h': 0.074, 'm': 3.74, 'I': 0.04712, 's_min': -0.4189, 's_max': 0.4189, 'sv_min': -3.2, 'sv_max': 3.2, 'v_switch': 7.319, 'a_max': 9.51, 'v_min':-5.0, 'v_max': 20.0, 'width': 0.31, 'length': 0.58}
-
-        # simulation parameters
-        try:
-            self.num_agents = kwargs['num_agents']
-        except:
-            self.num_agents = 2
-
-        try:
-            self.timestep = kwargs['timestep']
-        except:
-            self.timestep = 0.01
-
-        # default ego index
-        try:
-            self.ego_idx = kwargs['ego_idx']
-        except:
-            self.ego_idx = 0
+            if self.model == 'dynamic_ST':
+                self.params = {'mu': 1.0489, 'C_Sf': 4.718, 'C_Sr': 5.4562, 'lf': 0.15875, 'lr': 0.17145, 'h': 0.074,
+                               'm': 3.74, 'I': 0.04712, 's_min': -0.4189, 's_max': 0.4189, 'sv_min': -3.2,
+                               'sv_max': 3.2, 'v_switch': 7.319, 'a_max': 9.51, 'v_min': -5.0, 'v_max': 20.0,
+                               'width': 0.31, 'length': 0.58}  # F1/10 car
 
         # default integrator
         try:
-            self.integrator = kwargs['integrator']
+            self.integrator = env_config['integrator']
         except:
             self.integrator = Integrator.RK4
 
@@ -181,7 +162,7 @@ class F110Env(gym.Env):
         self.start_rot = np.eye(2)
 
         # initiate stuff
-        self.sim = Simulator(self.params, self.num_agents, self.seed, time_step=self.timestep, integrator=self.integrator)
+        self.sim = Simulator(self.params, self.num_agents, self.seed, time_step=self.timestep, integrator=self.integrator, scan_beam=self.scan_beams)
         self.sim.set_map(self.map_path, self.map_ext)
 
         # stateful observations for rendering
@@ -292,8 +273,13 @@ class F110Env(gym.Env):
         # check done
         done, toggle_list = self._check_done()
         info = {'checkpoint_done': toggle_list}
+        # check max steps
+        truncated = False
+        self.episode_step += 1
+        if self.episode_step >= self.max_episode_steps:
+            truncated = True
 
-        return obs, reward, done, info
+        return obs, reward, done, truncated, info
 
     def reset(self, poses):
         """
@@ -309,6 +295,7 @@ class F110Env(gym.Env):
             info (dict): auxillary information dictionary
         """
         # reset counters and data members
+        self.episode_step = 0
         self.current_time = 0.0
         self.collisions = np.zeros((self.num_agents, ))
         self.num_toggles = 0
@@ -327,7 +314,7 @@ class F110Env(gym.Env):
 
         # get no input observations
         action = np.zeros((self.num_agents, 2))
-        obs, reward, done, info = self.step(action)
+        obs, reward, done, truncated, info = self.step(action)
 
         self.render_obs = {
             'ego_idx': obs['ego_idx'],
@@ -394,7 +381,7 @@ class F110Env(gym.Env):
             # first call, initialize everything
             from f110_gym.envs.rendering import EnvRenderer
             F110Env.renderer = EnvRenderer(WINDOW_W, WINDOW_H)
-            F110Env.renderer.update_map(self.map_name, self.map_ext)
+            F110Env.renderer.update_map(os.path.splitext(self.map_path)[0], self.map_ext)
             
         F110Env.renderer.update_obs(self.render_obs)
 
