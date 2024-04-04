@@ -40,6 +40,7 @@ import time
 
 # gl
 import pyglet
+
 pyglet.options['debug_gl'] = False
 from pyglet import gl
 
@@ -50,6 +51,7 @@ from pyglet import gl
 # VIDEO_H = 400
 WINDOW_W = 1500
 WINDOW_H = 1200
+
 
 class F110Env(gym.Env):
     """
@@ -106,7 +108,8 @@ class F110Env(gym.Env):
         self.seed = env_config["seed"]
         self.map_name = env_config["map"]
         self.map_ext = env_config["map_ext"]
-        self.map_path = os.path.dirname(os.path.abspath(__file__)) + '/maps/' + f"{self.map_name}/" + f"{self.map_name}.yaml"
+        self.map_path = os.path.dirname(
+            os.path.abspath(__file__)) + '/maps/' + f"{self.map_name}/" + f"{self.map_name}.yaml"
         self.model = env_config.get("model", "dynamic_ST")
         assert self.model in ['dynamic_ST', 'MB']
         self.num_agents = env_config["num_agents"]
@@ -174,14 +177,19 @@ class F110Env(gym.Env):
                     # geometric parameters
                     'T_f': 1.389888,  # track width front [m]  TRWF
                     'T_r': 1.423416,  # track width rear [m]  TRWB
-                    'K_ras': 175186.659437,  # lateral spring rate at compliant compliant pin joint between M_s and M_u [N/m]  KRAS
+                    'K_ras': 175186.659437,
+                    # lateral spring rate at compliant compliant pin joint between M_s and M_u [N/m]  KRAS
 
-                    'K_tsf': -12880.270509,  # auxiliary torsion roll stiffness per axle (normally negative) (front) [N m/rad]  KTSF
-                    'K_tsr': 0.0,  # auxiliary torsion roll stiffness per axle (normally negative) (rear) [N m/rad]  KTSR
-                    'K_rad': 10215.732056,  # damping rate at compliant compliant pin joint between M_s and M_u [N s/m]  KRADP
+                    'K_tsf': -12880.270509,
+                    # auxiliary torsion roll stiffness per axle (normally negative) (front) [N m/rad]  KTSF
+                    'K_tsr': 0.0,
+                    # auxiliary torsion roll stiffness per axle (normally negative) (rear) [N m/rad]  KTSR
+                    'K_rad': 10215.732056,
+                    # damping rate at compliant compliant pin joint between M_s and M_u [N s/m]  KRADP
                     'K_zt': 189785.547723,  # vertical spring rate of tire [N/m]  TSPRINGR
 
-                    'h_cg': 0.557784,  # center of gravity height of total mass [m]  HCG (mainly required for conversion to other vehicle models)
+                    'h_cg': 0.557784,
+                    # center of gravity height of total mass [m]  HCG (mainly required for conversion to other vehicle models)
                     'h_raf': 0.0,  # height of roll axis above ground (front) [m]  HRAF
                     'h_rar': 0.0,  # height of roll axis above ground (rear) [m]  HRAR
 
@@ -191,15 +199,17 @@ class F110Env(gym.Env):
                     'I_ur': 32.539630,  # moment of inertia for unsprung mass about x-axis (rear) [kg m^2]  IXUR
                     'I_y_w': 1.7,  # wheel inertia, from internet forum for 235/65 R 17 [kg m^2]
 
-                    'K_lt': 1.0278264878518764e-05,  # lateral compliance rate of tire, wheel, and suspension, per tire [m/N]  KLT
-                    'R_w': 0.344,  # effective wheel/tire radius  chosen as tire rolling radius RR  taken from ADAMS documentation [m]
+                    'K_lt': 1.0278264878518764e-05,
+                    # lateral compliance rate of tire, wheel, and suspension, per tire [m/N]  KLT
+                    'R_w': 0.344,
+                    # effective wheel/tire radius  chosen as tire rolling radius RR  taken from ADAMS documentation [m]
 
                     # split of brake and engine torque
                     'T_sb': 0.76,
                     'T_se': 1,
 
                     # suspension parameters
-                    'D_f': -0.623359580, # [rad/m]  DF
+                    'D_f': -0.623359580,  # [rad/m]  DF
                     'D_r': -0.209973753,  # [rad/m]  DR
                     'E_f': 0,  # [needs conversion if nonzero]  EF
                     'E_r': 0,  # [needs conversion if nonzero]  ER
@@ -249,7 +259,7 @@ class F110Env(gym.Env):
         self.poses_x = []
         self.poses_y = []
         self.poses_theta = []
-        self.collisions = np.zeros((self.num_agents, ))
+        self.collisions = np.zeros((self.num_agents,))
         # TODO: collision_idx not used yet
         # self.collision_idx = -1 * np.ones((self.num_agents, ))
 
@@ -258,18 +268,18 @@ class F110Env(gym.Env):
         self.num_toggles = 0
 
         # race info
-        self.lap_times = np.zeros((self.num_agents, ))
-        self.lap_counts = np.zeros((self.num_agents, ))
+        self.lap_times = np.zeros((self.num_agents,))
+        self.lap_counts = np.zeros((self.num_agents,))
         self.current_time = 0.0
 
         # finish line info
         self.num_toggles = 0
         self.near_start = True
-        self.near_starts = np.array([True]*self.num_agents)
+        self.near_starts = np.array([True] * self.num_agents)
         self.toggle_list = np.zeros((self.num_agents,))
-        self.start_xs = np.zeros((self.num_agents, ))
-        self.start_ys = np.zeros((self.num_agents, ))
-        self.start_thetas = np.zeros((self.num_agents, ))
+        self.start_xs = np.zeros((self.num_agents,))
+        self.start_ys = np.zeros((self.num_agents,))
+        self.start_thetas = np.zeros((self.num_agents,))
         self.start_rot = np.eye(2)
 
         # initiate stuff
@@ -302,11 +312,11 @@ class F110Env(gym.Env):
         # TODO: switch to maybe s-based
         left_t = 2
         right_t = 2
-        
-        poses_x = np.array(self.poses_x)-self.start_xs
-        poses_y = np.array(self.poses_y)-self.start_ys
+
+        poses_x = np.array(self.poses_x) - self.start_xs
+        poses_y = np.array(self.poses_y) - self.start_ys
         delta_pt = np.dot(self.start_rot, np.stack((poses_x, poses_y), axis=0))
-        temp_y = delta_pt[1,:]
+        temp_y = delta_pt[1, :]
         idx1 = temp_y > left_t
         idx2 = temp_y < -right_t
         temp_y[idx1] -= left_t
@@ -326,9 +336,9 @@ class F110Env(gym.Env):
             if self.toggle_list[i] < 4:
                 self.lap_times[i] = self.current_time
             # print('toggle_list', self.toggle_list[i])
-        
+
         done = (self.collisions[self.ego_idx]) or np.all(self.toggle_list >= 4)
-        
+
         return done, self.toggle_list >= 3
 
     def _update_state(self, obs_dict):
@@ -359,7 +369,7 @@ class F110Env(gym.Env):
             done (bool): if the simulation is done
             info (dict): auxillary information dictionary
         """
-        
+
         # call simulation step
         self.sim.step(action)
         obs, done, info = self.get_observations()
@@ -397,11 +407,12 @@ class F110Env(gym.Env):
             initial_states = temp_states  # fill rest with zeros
 
         # reset counters and data members
+        self.episode_step = 0  # reset episode step counter
         self.current_time = 0.0
-        self.collisions = np.zeros((self.num_agents, ))
+        self.collisions = np.zeros((self.num_agents,))
         self.num_toggles = 0
         self.near_start = True
-        self.near_starts = np.array([True]*self.num_agents)
+        self.near_starts = np.array([True] * self.num_agents)
         self.toggle_list = np.zeros((self.num_agents,))
 
         # states after reset
@@ -426,8 +437,8 @@ class F110Env(gym.Env):
             'poses_theta': obs['poses_theta'],
             'lap_times': obs['lap_times'],
             'lap_counts': obs['lap_counts']
-            }
-        
+        }
+
         return obs, reward, done, info
 
     def get_observations(self):
@@ -458,7 +469,7 @@ class F110Env(gym.Env):
         # done, toggle_list = self._check_done()
         # info = {'checkpoint_done': toggle_list}
         # [zhijunz] switch back to only check collision for done
-        done = obs["collisions"][0]
+        done = True if obs["collisions"][0] == 1 else False
         info = {}
 
         return obs, done, info
@@ -512,18 +523,18 @@ class F110Env(gym.Env):
             None
         """
         assert mode in ['human', 'human_fast']
-        
+
         if F110Env.renderer is None:
             # first call, initialize everything
             from f110_gym.envs.rendering import EnvRenderer
             F110Env.renderer = EnvRenderer(WINDOW_W, WINDOW_H)
             F110Env.renderer.update_map(os.path.splitext(self.map_path)[0], self.map_ext)
-            
+
         F110Env.renderer.update_obs(self.render_obs)
 
         for render_callback in F110Env.render_callbacks:
             render_callback(F110Env.renderer)
-        
+
         F110Env.renderer.dispatch_events()
         F110Env.renderer.on_draw()
         F110Env.renderer.flip()
