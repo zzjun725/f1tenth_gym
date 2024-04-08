@@ -434,10 +434,11 @@ class RaceCar(object):
                     self.state[iState] = 0.0
 
         # bound yaw angle
-        if self.state[4] > 2 * np.pi:
-            self.state[4] = self.state[4] - 2 * np.pi
-        elif self.state[4] < 0:
-            self.state[4] = self.state[4] + 2 * np.pi
+        # if self.state[4] > 2 * np.pi:
+        #     self.state[4] = self.state[4] - 2 * np.pi
+        # elif self.state[4] < 0:
+        #     self.state[4] = self.state[4] + 2 * np.pi
+        self.state[4] = (self.state[4] + 2*np.pi) % (2 * np.pi)
 
         # update scan
         current_scan = self.get_current_scan()
@@ -648,70 +649,71 @@ class Simulator(object):
         # state is [x, y, steer_angle, vel, yaw_angle, yaw_rate, slip_angle]
         # collision_angles is removed from observations
 
-        # observations = {'ego_idx': self.ego_idx,
-        #                 'scans': [],
-        #                 'poses_x': [],
-        #                 'poses_y': [],
-        #                 'poses_theta': [],
-        #                 'linear_vels_x': [],
-        #                 'linear_vels_y': [],
-        #                 'ang_vels_z': [],
-        #                 'collisions': self.collisions}
-        # for i, agent in enumerate(self.agents):
-        #     observations['scans'].append(agent_scans[i])
-        #     observations['poses_x'].append(agent.state[0])
-        #     observations['poses_y'].append(agent.state[1])
-        #     observations['poses_theta'].append(agent.state[4])
-        #     observations['linear_vels_x'].append(agent.state[3])
-        #     observations['linear_vels_y'].append(0.)
-        #     observations['ang_vels_z'].append(agent.state[5])
-        observations = {'ego_idx': self.ego_idx,
-                        'scans': [],
-                        'poses_x': [],
-                        'poses_y': [],
-                        'poses_theta': [],
-                        'linear_vels_x': [],
-                        'linear_vels_y': [],
-                        'ang_vels_z': [],
-                        'collisions': self.collisions,
-                        'x1': [], # x-pos
-                        'x2': [], # y-pos
-                        'x3': [], # steer
-                        'x4': [], # vx
-                        'x5': [], # yaw angle
-                        'x6': [], # yaw rate
-                        # 'x11': [], # vy
-                        # 'x12': [], # height
-                        # 'x13': [], # vz
-                        # 'x16': [], # vy front
-                        # 'x21': [], # vy rear
-                        'control0': [],
-                        'control1': [],
-                        'state': []}
-        for i, agent in enumerate(self.agents):
-            if DO_SCAN: observations['scans'].append(agent_scans[i])
-            observations['poses_x'].append(agent.state[0])
-            observations['poses_y'].append(agent.state[1])
-            observations['poses_theta'].append(agent.state[4])
-            observations['linear_vels_x'].append(agent.state[3])
-            observations['linear_vels_y'].append(0.)
-            observations['ang_vels_z'].append(agent.state[5])
-            observations['x1'].append(agent.state[0])
-            observations['x2'].append(agent.state[1])
-            observations['x3'].append(agent.state[2])
-            observations['x4'].append(agent.state[3])
-            observations['x5'].append(agent.state[4])
-            observations['x6'].append(agent.state[5])
-            # observations['x11'].append(agent.state[10])
-            # observations['x12'].append(agent.state[11])
-            # observations['x13'].append(agent.state[12])
-            # observations['x16'].append(agent.state[15])
-            # observations['x21'].append(agent.state[20])
-            observations['state'].append(agent.state)
-            observations['control0'].append(control_inputs[i, 0])
-            observations['control1'].append(control_inputs[i, 1])
-
-
+        if self.model == 'dynamic_ST':
+            observations = {'ego_idx': self.ego_idx,
+                            'scans': [],
+                            'poses_x': [],
+                            'poses_y': [],
+                            'poses_theta': [],
+                            'linear_vels_x': [],
+                            'linear_vels_y': [],
+                            'ang_vels_z': [],
+                            'collisions': self.collisions}
+            for i, agent in enumerate(self.agents):
+                observations['scans'].append(agent_scans[i])
+                observations['poses_x'].append(agent.state[0])
+                observations['poses_y'].append(agent.state[1])
+                observations['poses_theta'].append(agent.state[4])
+                observations['linear_vels_x'].append(agent.state[3])
+                observations['linear_vels_y'].append(0.)
+                observations['ang_vels_z'].append(agent.state[5])
+        # self.model=='MB'
+        else:
+            observations = {'ego_idx': self.ego_idx,
+                            'scans': [],
+                            'poses_x': [],
+                            'poses_y': [],
+                            'poses_theta': [],
+                            'linear_vels_x': [],
+                            'linear_vels_y': [],
+                            'ang_vels_z': [],
+                            'collisions': self.collisions,
+                            'x1': [], # x-pos
+                            'x2': [], # y-pos
+                            'x3': [], # steer
+                            'x4': [], # vx
+                            'x5': [], # yaw angle
+                            'x6': [], # yaw rate
+                            # 'x11': [], # vy
+                            # 'x12': [], # height
+                            # 'x13': [], # vz
+                            # 'x16': [], # vy front
+                            # 'x21': [], # vy rear
+                            'control0': [],
+                            'control1': [],
+                            'state': []}
+            for i, agent in enumerate(self.agents):
+                if DO_SCAN: observations['scans'].append(agent_scans[i])
+                observations['poses_x'].append(agent.state[0])
+                observations['poses_y'].append(agent.state[1])
+                observations['poses_theta'].append(agent.state[4])
+                observations['linear_vels_x'].append(agent.state[3])
+                observations['linear_vels_y'].append(0.)
+                observations['ang_vels_z'].append(agent.state[5])
+                observations['x1'].append(agent.state[0])
+                observations['x2'].append(agent.state[1])
+                observations['x3'].append(agent.state[2])
+                observations['x4'].append(agent.state[3])
+                observations['x5'].append(agent.state[4])
+                observations['x6'].append(agent.state[5])
+                # observations['x11'].append(agent.state[10])
+                # observations['x12'].append(agent.state[11])
+                # observations['x13'].append(agent.state[12])
+                # observations['x16'].append(agent.state[15])
+                # observations['x21'].append(agent.state[20])
+                observations['state'].append(agent.state)
+                observations['control0'].append(control_inputs[i, 0])
+                observations['control1'].append(control_inputs[i, 1])
         return observations
 
     def reset(self, initial_states):

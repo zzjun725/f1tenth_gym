@@ -118,7 +118,7 @@ class F110Env(gym.Env):
         self.steering_control_mode = env_config.get("steering_control_mode", "angle")
         assert self.steering_control_mode in ['angle', 'vel']
         self.ego_idx = 0
-        self.timestep = 0.01
+        self.timestep = env_config["timestep"]
         self.max_episode_steps = env_config["max_episode_steps"]
         self.episode_step = 0
         self.scan_beams = env_config["scan_beams"]
