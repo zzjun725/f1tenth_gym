@@ -94,7 +94,7 @@ def vehicle_dynamics_ks(x, u_init, mu, C_Sf, C_Sr, lf, lr, h, m, I, s_min, s_max
     Single Track Kinematic Vehicle Dynamics.
 
         Args:
-            x (numpy.ndarray (3, )): vehicle state vector (x1, x2, x3, x4, x5)
+            x (numpy.ndarray (5, )): vehicle state vector (x1, x2, x3, x4, x5)
                 x1: x position in global coordinates
                 x2: y position in global coordinates
                 x3: steering angle of front wheels
@@ -127,7 +127,7 @@ def vehicle_dynamics_st(x, u_init, mu, C_Sf, C_Sr, lf, lr, h, m, I, s_min, s_max
     Single Track Dynamic Vehicle Dynamics.
 
         Args:
-            x (numpy.ndarray (3, )): vehicle state vector (x1, x2, x3, x4, x5, x6, x7)
+            x (numpy.ndarray (7, )): vehicle state vector (x1, x2, x3, x4, x5, x6, x7)
                 x1: x position in global coordinates
                 x2: y position in global coordinates
                 x3: steering angle of front wheels

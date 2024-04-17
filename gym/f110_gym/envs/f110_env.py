@@ -453,15 +453,6 @@ class F110Env(gym.Env):
         F110Env.current_obs = obs
 
         self.render_obs = obs
-        # self.render_obs = {
-        #     'ego_idx': obs['ego_idx'],
-        #     'poses_x': obs['poses_x'],
-        #     'poses_y': obs['poses_y'],
-        #     'poses_theta': obs['poses_theta'],
-        #     'lap_times': obs['lap_times'],
-        #     'lap_counts': obs['lap_counts']
-        # }
-
         # update data member
         self._update_state(obs)
 
@@ -473,6 +464,21 @@ class F110Env(gym.Env):
         info = {}
 
         return obs, done, info
+
+
+    def forward_trajectory(self, s0, u_list, dt):
+        """
+        Forward simulate the trajectory of the vehicle given the initial state and actions
+
+        Args:
+            s0 (np.ndarray (7,)): initial state of the vehicle
+            actions (np.ndarray (num_steps, 2)): actions to take
+
+        Returns:
+            states (np.ndarray (num_steps, 7)): states of the vehicle
+        """
+        return self.sim.forward_trajectory(s0, u_list, dt)
+
 
     def update_map(self, map_path, map_ext):
         """
