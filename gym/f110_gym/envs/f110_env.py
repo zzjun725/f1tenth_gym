@@ -111,7 +111,7 @@ class F110Env(gym.Env):
         self.map_path = os.path.dirname(
             os.path.abspath(__file__)) + '/maps/' + f"{self.map_name}/" + f"{self.map_name}.yaml"
         self.model = env_config.get("model", "dynamic_ST")
-        assert self.model in ['dynamic_ST', 'MB']
+        assert self.model in ['dynamic_ST', 'dynamic_f110', 'MB']
         self.num_agents = env_config["num_agents"]
         self.drive_control_mode = env_config.get("drive_control_mode", "vel")
         assert self.drive_control_mode in ['vel', 'acc']
@@ -122,18 +122,20 @@ class F110Env(gym.Env):
         self.max_episode_steps = env_config["max_episode_steps"]
         self.episode_step = 0
         self.scan_beams = env_config["scan_beams"]
+        self.map_collision_check = env_config.get("map_collision_check", True)
         try:
             self.params = env_config['params']
         except:
             if self.model == 'dynamic_ST':
-                self.params = {'mu': 1.0489, 'C_Sf': 4.718, 'C_Sr': 5.4562, 'lf': 0.15875, 'lr': 0.17145, 'h': 0.074,
-                               'm': 3.74, 'I': 0.04712, 's_min': -0.4189, 's_max': 0.4189, 'sv_min': -3.2,
-                               'sv_max': 3.2, 'v_switch': 7.319, 'a_max': 9.51, 'v_min': -5.0, 'v_max': 20.0,
-                               'width': 0.31, 'length': 0.58}  # F1/10 car
-                # self.params = {'mu': 1.0489, 'C_Sf': 20.898, 'C_Sr': 20.898, 'lf': 0.88392, 'lr': 1.50876, 'h': 0.59436,
-                #                'm': 1225.887, 'I': 1538.853371, 's_min': -0.910, 's_max': 0.910, 'sv_min': -0.4,
-                #                'sv_max': 0.4, 'v_switch': 4.755, 'a_max': 3.5, 'v_min': -13.9, 'v_max': 45.8,
-                #                'width': 1.674, 'length': 4.298}
+                # self.params = {'mu': 1.0489, 'C_Sf': 4.718, 'C_Sr': 5.4562, 'lf': 0.15875, 'lr': 0.17145, 'h': 0.074,
+                #                'm': 3.74, 'I': 0.04712, 's_min': -0.4189, 's_max': 0.4189, 'sv_min': -3.2,
+                #                'sv_max': 3.2, 'v_switch': 7.319, 'a_max': 9.51, 'v_min': -5.0, 'v_max': 20.0,
+                               # 'width': 0.31, 'length': 0.58}  # F1/10 car
+                               # 'width': 1.674, 'length': 4.298}
+                self.params = {'mu': 1.0489, 'C_Sf': 20.898, 'C_Sr': 20.898, 'lf': 0.88392, 'lr': 1.50876, 'h': 0.59436,
+                               'm': 1225.887, 'I': 1538.853371, 's_min': -0.910, 's_max': 0.910, 'sv_min': -0.4,
+                               'sv_max': 0.4, 'v_switch': 4.755, 'a_max': 3.5, 'v_min': -13.9, 'v_max': 45.8,
+                               'width': 1.674, 'length': 4.298}
             elif self.model == 'MB':
                 self.params = {
                     # vehicle body dimensions
@@ -251,7 +253,24 @@ class F110Env(gym.Env):
                     'tire_r_vy5': 1.9,  # Variation of Svyk/Muy*Fz with kappa
                     'tire_r_vy6': -10.704,  # Variation of Svyk/Muy*Fz with atan(kappa)
                 }
-
+            elif self.model == 'dynamic_f110':
+                # self.params = {
+                #     "I": 0.09, "a_max": 5.0, "a_min": -3.0, 's_min': -0.4189, 's_max': 0.4189, 'sv_min': -3.2,
+                #     'sv_max': 3.2, 'v_switch': 7.319,
+                #     "h": 0.02, "lf": 0.162, "lr": 0.145, "lwb": 0.307, "m": 3.31,
+                #     "mu": 1.0, "tau_steer": 0.15, "B_f": 3.12, "C_f": 2.23, "D_f": 0.72, "E_f": 0.23, "B_r": 29.91,
+                #     "C_r": 2.23, "D_r": 1.21, "E_r": 0.92,
+                #     'steer_delay_time': 0.05, "accel_delay_time": 0.05, "tire_model": "pacejka",
+                #     'width': 0.31, 'length': 0.58
+                # } # f110 car
+                self.params = {
+                    'I': 1538.853371, "a_max": 3.5, "a_min": -3.0, 's_min': -0.910, 's_max': 0.910, 'sv_min': -0.4,
+                    'sv_max': 0.4, 'v_switch': 7.319,
+                    'lf': 0.88392, 'lr': 1.50876, 'h': 0.59436, "lwb": 0.307, 'm': 1225.887,
+                    'mu': 1.0489, 'C_Sf': 20.898, 'C_Sr': 20.898,
+                    'steer_delay_time': 0.05, "accel_delay_time": 0.05, "tire_model": "linear",
+                    'width': 1.674, 'length': 4.298,
+                }
         # radius to consider done
         self.start_thresh = 0.5  # 10cm
 
@@ -284,7 +303,7 @@ class F110Env(gym.Env):
 
         # initiate stuff
         self.sim = Simulator(self.model, self.steering_control_mode, self.drive_control_mode, self.params,
-                             self.num_agents, self.seed, time_step=self.timestep, scan_beam=self.scan_beams)
+                             self.num_agents, self.seed, time_step=self.timestep, scan_beam=self.scan_beams, map_collision_check=self.map_collision_check)
         self.sim.set_map(self.map_path, self.map_ext)
 
         # stateful observations for rendering
@@ -464,21 +483,6 @@ class F110Env(gym.Env):
         info = {}
 
         return obs, done, info
-
-
-    def forward_trajectory(self, s0, u_list, dt):
-        """
-        Forward simulate the trajectory of the vehicle given the initial state and actions
-
-        Args:
-            s0 (np.ndarray (7,)): initial state of the vehicle
-            actions (np.ndarray (num_steps, 2)): actions to take
-
-        Returns:
-            states (np.ndarray (num_steps, 7)): states of the vehicle
-        """
-        return self.sim.forward_trajectory(s0, u_list, dt)
-
 
     def update_map(self, map_path, map_ext):
         """

@@ -31,9 +31,13 @@ import numpy as np
 from numba import njit
 from scipy import integrate
 
-from f110_gym.envs.dynamic_models import vehicle_dynamics_st, vehicle_dynamics_mb, init_mb, pid, accl_constraints, steering_constraint
+from f110_gym.envs.dynamic_models import vehicle_dynamics_st, vehicle_dynamics_mb, init_mb, pid, accl_constraints, \
+    steering_constraint
 from f110_gym.envs.laser_models import ScanSimulator2D, check_ttc_jit, ray_cast
 from f110_gym.envs.collision_models import get_vertices, collision_multiple
+from f110_gym.envs.bicycle_f110 import kinematic_st, dynamic_st  # [steer, speed] as control input
+from f110_gym.envs.bicycle_f110 import dynamic_f110_idx, dynamic_idx
+
 DO_SCAN = True
 
 
@@ -104,6 +108,17 @@ class RaceCar(object):
         elif self.model == 'MB':
             params_array = np.array(list(self.params.values()))
             self.state = init_mb(np.zeros((7,)), params_array)
+        elif self.model == 'dynamic_f110':
+            self.state = np.zeros((7,))
+            self.f110_dynamics = lambda t, s, u: dynamic_st(s, u, self.params, self.params['tire_model'])
+
+        # USE index to increase flexibility
+        if self.model == 'dynamic_f110':
+            self.params_idx = dynamic_f110_idx
+        elif self.model == 'dynamic_ST':
+            self.params_idx = dynamic_idx
+        for key, value in self.params_idx.items():
+            setattr(self, key, value)
 
         # pose of opponents in the world
         self.opp_poses = None
@@ -188,7 +203,7 @@ class RaceCar(object):
         """
         RaceCar.scan_simulator.set_map(map_path, map_ext)
 
-    def reset(self, pose, steering_angle=0, velocity=0, yaw_rate=0, beta=0):
+    def reset(self, pose, steering_angle=0, velocity=0, yaw_rate=0, beta=0, vx=0, vy=0):
         """
         Resets the vehicle to a pose
         
@@ -214,16 +229,24 @@ class RaceCar(object):
             self.state[4] = pose[2]
             self.state[5] = yaw_rate
             self.state[6] = beta
+        elif self.model == 'dynamic_f110':
+            self.state = np.zeros((7,))
+            self.state[0:2] = pose[0:2]
+            self.state[self.DELTA] = steering_angle
+            self.state[self.YAW] = pose[2]
+            self.state[self.VX] = vx
+            self.state[self.VY] = vy
+            self.state[self.YAWRATE] = yaw_rate
         elif self.model == 'MB':
             params_array = np.array(list(self.params.values()))
-            
+
             if len(pose) == 29:
                 self.state = pose
             else:
                 self.state = init_mb(np.array([pose[0], pose[1],
-                                            steering_angle, velocity,
-                                            pose[2], yaw_rate,
-                                            beta]), params_array)
+                                               steering_angle, velocity,
+                                               pose[2], yaw_rate,
+                                               beta]), params_array)
         self.steer_buffer = np.empty((0,))
         # reset scan random generator
         self.scan_rng = np.random.default_rng(seed=self.seed)
@@ -247,7 +270,8 @@ class RaceCar(object):
             # get vertices of current oppoenent
             opp_vertices = get_vertices(opp_pose, self.params['length'], self.params['width'])
 
-            new_scan = ray_cast(np.append(self.state[0:2], self.state[4]), new_scan, self.scan_angles, opp_vertices)
+            new_scan = ray_cast(np.append(self.state[0:2], self.state[self.YAW]), new_scan, self.scan_angles,
+                                opp_vertices)
 
         return new_scan
 
@@ -264,12 +288,16 @@ class RaceCar(object):
         Returns:
             None
         """
-
-        in_collision = check_ttc_jit(current_scan, self.state[3], self.scan_angles, self.cosines, self.side_distances, self.ttc_thresh)
+        vel = self.state[self.VX]
+        in_collision = check_ttc_jit(current_scan, vel, self.scan_angles, self.cosines, self.side_distances,
+                                     self.ttc_thresh)
 
         # if in collision stop vehicle
         if in_collision:
-            self.state[3:] = 0.
+            if self.model == 'dynamic_f110':
+                self.state[5:] = 0.
+            else:
+                self.state[3:] = 0.
             self.accel = 0.0
             self.steer_angle_vel = 0.0
 
@@ -292,13 +320,13 @@ class RaceCar(object):
             F_z_LF, F_z_RF, F_z_LR, F_z_RR = vehicle_dynamics_mb(x, u, p, use_kinematic)
         return f
 
-    def update_pose(self, raw_steer, drive):
+    def step(self, steer_action, velocity_action):
         """
         Steps the vehicle's physical simulation
 
         Args:
             steer (float): desired steering angle
-            drive (float): desired velocity/acceleration
+            velocity_action (float): desired velocity/acceleration
 
         Returns:
             current_scan
@@ -315,130 +343,139 @@ class RaceCar(object):
         #     steer = self.steer_buffer[-1]
         #     self.steer_buffer = self.steer_buffer[:-1]
         #     self.steer_buffer = np.append(raw_steer, self.steer_buffer)
-        steer = raw_steer
-
-        if self.steering_control_mode != 'vel' or self.drive_control_mode != 'acc':
-            # steering angle velocity input to steering velocity acceleration input
-            accl, sv = pid(drive, steer, self.state[3], self.state[2], self.params['sv_max'], self.params['a_max'],
-                        self.params['v_max'], self.params['v_min'])
-        
-        if self.drive_control_mode == 'acc':
-            if drive > self.params['a_max']:
-                accl = self.params['a_max']
-            elif drive < -self.params['a_max']:
-                accl = -self.params['a_max']
-            else:
-                accl = drive
-
-        if self.steering_control_mode == 'vel':
-            sv = steer
-        integration_method = 'LSODA_old'  # 'LSODA'  'euler' 'LSODA_old' 'RK45'
 
         # update physics, get RHS of diff'eq
-        if self.model == 'dynamic_ST':
-            f = vehicle_dynamics_st(
-                self.state,
-                np.array([sv, accl]),
-                self.params['mu'],
-                self.params['C_Sf'],
-                self.params['C_Sr'],
-                self.params['lf'],
-                self.params['lr'],
-                self.params['h'],
-                self.params['m'],
-                self.params['I'],
-                self.params['s_min'],
-                self.params['s_max'],
-                self.params['sv_min'],
-                self.params['sv_max'],
-                self.params['v_switch'],
-                self.params['a_max'],
-                self.params['v_min'],
-                self.params['v_max'])
-            # update state
-            self.state = self.state + f * self.time_step
-        elif self.model == 'MB':
-            params_array = np.array(list(self.params.values()))
+        if self.model == 'dynamic_f110':  # 'dynamic_f110' directly use [steer, speed] as control input
+            u = np.array([steer_action, velocity_action])
+            sol = integrate.solve_ivp(self.f110_dynamics, [0, self.time_step], self.state, args=(u,), method='RK45', rtol=1e-6,
+                                      atol=1e-9)
+            self.state = sol.y[:, -1]
+        # input: [sv, accl]
+        else:
+            steer = steer_action
+            if self.steering_control_mode != 'vel' or self.drive_control_mode != 'acc':
+                # steering angle velocity input to steering velocity acceleration input
+                accl, sv = pid(velocity_action, steer, self.state[3], self.state[2], self.params['sv_max'],
+                               self.params['a_max'],
+                               self.params['v_max'], self.params['v_min'])
 
-            # steering constraints
-            s_min = params_array[2]  # minimum steering angle [rad]
-            s_max = params_array[3]  # maximum steering angle [rad]
-            sv_min = params_array[4]  # minimum steering velocity [rad/s]
-            sv_max = params_array[5]  # maximum steering velocity [rad/s]
+            if self.drive_control_mode == 'acc':
+                if velocity_action > self.params['a_max']:
+                    accl = self.params['a_max']
+                elif velocity_action < -self.params['a_max']:
+                    accl = -self.params['a_max']
+                else:
+                    accl = velocity_action
 
-            # longitudinal constraints
-            v_min = params_array[6]  # minimum velocity [m/s]
-            v_max = params_array[7]  # minimum velocity [m/s]
-            v_switch = params_array[8]  # switching velocity [m/s]
-            a_max = params_array[9]  # maximum absolute acceleration [m/s^2]
-
-            # split of brake and engine torque
-            T_sb = params_array[40]
-            T_se = params_array[41]
-
-            m = params_array[10]  # vehicle mass [kg]  MASS
-
-            R_w = params_array[39]  # effective wheel/tire radius  chosen as tire rolling radius RR  taken from ADAMS documentation [m]
-
-            u = np.array([steering_constraint(self.state[2], sv, s_min, s_max, sv_min, sv_max),
-                          accl_constraints(self.state[3], accl, v_switch, a_max, v_min, v_max)])
-
-            if u[1] > 0:
-                T_B = 0.0
-                T_E = m * R_w * u[1]
-            else:
-                T_B = m * R_w * u[1]
-                T_E = 0.0
-
-            front_tire_force = 0.5 * T_sb * T_B + 0.5 * T_se * T_E
-            rear_tire_force = 0.5 * (1 - T_sb) * T_B + 0.5 * (1 - T_se) * T_E
-
-            control_input = np.array([u[0], front_tire_force, rear_tire_force])
-
-            if np.abs(self.state[3]) < 0.01:
-                use_kinematic = True
-            else:
-                use_kinematic = False
-
-            if integration_method == 'euler':
-                f = vehicle_dynamics_mb(self.state, control_input, params_array, use_kinematic)
+            if self.steering_control_mode == 'vel':
+                sv = steer
+            integration_method = 'LSODA_old'  # 'LSODA'  'euler' 'LSODA_old' 'RK45'
+            if self.model == 'dynamic_ST':
+                f = vehicle_dynamics_st(
+                    self.state,
+                    np.array([sv, accl]),
+                    self.params['mu'],
+                    self.params['C_Sf'],
+                    self.params['C_Sr'],
+                    self.params['lf'],
+                    self.params['lr'],
+                    self.params['h'],
+                    self.params['m'],
+                    self.params['I'],
+                    self.params['s_min'],
+                    self.params['s_max'],
+                    self.params['sv_min'],
+                    self.params['sv_max'],
+                    self.params['v_switch'],
+                    self.params['a_max'],
+                    self.params['v_min'],
+                    self.params['v_max'])
                 # update state
                 self.state = self.state + f * self.time_step
-            elif integration_method == 'LSODA':
-                x_left = integrate.solve_ivp(self.func_MB, (0.0, self.time_step),
-                                             self.state, method='LSODA',
-                                             args=(control_input, params_array, use_kinematic))
-                self.state = x_left.y[:, -1]
-            elif integration_method == 'RK45':
-                x_left = integrate.solve_ivp(self.func_MB, (0.0, self.time_step),
-                                             self.state, method='RK45',
-                                             args=(control_input, params_array, use_kinematic))
-                self.state = x_left.y[:, -1]
-            elif integration_method == 'LSODA_old':
+            elif self.model == 'MB':
+                params_array = np.array(list(self.params.values()))
 
-                x_left = integrate.odeint(self.func_MB2, self.state,
-                                          np.array([0.0, self.time_step]),
-                                          args=(control_input, params_array, use_kinematic),
-                                          mxstep=10000, full_output=1)
-                _, F_x_LF, F_x_RF, F_x_LR, F_x_RR, F_y_LF, F_y_RF, F_y_LR, F_y_RR, \
-                    s_lf, s_rf, s_lr, s_rr, alpha_LF, alpha_RF, alpha_LR, alpha_RR, \
-                    F_z_LF, F_z_RF, F_z_LR, F_z_RR = vehicle_dynamics_mb(self.state, control_input, params_array, use_kinematic)
-                self.tire_forces = np.array([F_x_LF, F_x_RF, F_x_LR, F_x_RR, F_y_LF, F_y_RF, F_y_LR, F_y_RR])
-                self.longitudinal_slip = np.array([s_lf, s_rf, s_lr, s_rr])
-                self.lateral_slip = np.array([alpha_LF, alpha_RF, alpha_LR, alpha_RR])
-                self.vertical_tire_forces = np.array([F_z_LF, F_z_RF, F_z_LR, F_z_RR])
-                self.state = x_left[0][1]
+                # steering constraints
+                s_min = params_array[2]  # minimum steering angle [rad]
+                s_max = params_array[3]  # maximum steering angle [rad]
+                sv_min = params_array[4]  # minimum steering velocity [rad/s]
+                sv_max = params_array[5]  # maximum steering velocity [rad/s]
 
-            for iState in range(23, 27):
-                if self.state[iState] < 0.0:
-                    self.state[iState] = 0.0
+                # longitudinal constraints
+                v_min = params_array[6]  # minimum velocity [m/s]
+                v_max = params_array[7]  # minimum velocity [m/s]
+                v_switch = params_array[8]  # switching velocity [m/s]
+                a_max = params_array[9]  # maximum absolute acceleration [m/s^2]
+
+                # split of brake and engine torque
+                T_sb = params_array[40]
+                T_se = params_array[41]
+
+                m = params_array[10]  # vehicle mass [kg]  MASS
+
+                R_w = params_array[
+                    39]  # effective wheel/tire radius  chosen as tire rolling radius RR  taken from ADAMS documentation [m]
+
+                u = np.array([steering_constraint(self.state[2], sv, s_min, s_max, sv_min, sv_max),
+                              accl_constraints(self.state[3], accl, v_switch, a_max, v_min, v_max)])
+
+                if u[1] > 0:
+                    T_B = 0.0
+                    T_E = m * R_w * u[1]
+                else:
+                    T_B = m * R_w * u[1]
+                    T_E = 0.0
+
+                front_tire_force = 0.5 * T_sb * T_B + 0.5 * T_se * T_E
+                rear_tire_force = 0.5 * (1 - T_sb) * T_B + 0.5 * (1 - T_se) * T_E
+
+                control_input = np.array([u[0], front_tire_force, rear_tire_force])
+
+                if np.abs(self.state[3]) < 0.01:
+                    use_kinematic = True
+                else:
+                    use_kinematic = False
+
+                if integration_method == 'euler':
+                    f = vehicle_dynamics_mb(self.state, control_input, params_array, use_kinematic)
+                    # update state
+                    self.state = self.state + f * self.time_step
+                elif integration_method == 'LSODA':
+                    x_left = integrate.solve_ivp(self.func_MB, (0.0, self.time_step),
+                                                 self.state, method='LSODA',
+                                                 args=(control_input, params_array, use_kinematic))
+                    self.state = x_left.y[:, -1]
+                elif integration_method == 'RK45':
+                    x_left = integrate.solve_ivp(self.func_MB, (0.0, self.time_step),
+                                                 self.state, method='RK45',
+                                                 args=(control_input, params_array, use_kinematic))
+                    self.state = x_left.y[:, -1]
+                elif integration_method == 'LSODA_old':
+
+                    x_left = integrate.odeint(self.func_MB2, self.state,
+                                              np.array([0.0, self.time_step]),
+                                              args=(control_input, params_array, use_kinematic),
+                                              mxstep=10000, full_output=1)
+                    _, F_x_LF, F_x_RF, F_x_LR, F_x_RR, F_y_LF, F_y_RF, F_y_LR, F_y_RR, \
+                        s_lf, s_rf, s_lr, s_rr, alpha_LF, alpha_RF, alpha_LR, alpha_RR, \
+                        F_z_LF, F_z_RF, F_z_LR, F_z_RR = vehicle_dynamics_mb(self.state, control_input, params_array,
+                                                                             use_kinematic)
+                    self.tire_forces = np.array([F_x_LF, F_x_RF, F_x_LR, F_x_RR, F_y_LF, F_y_RF, F_y_LR, F_y_RR])
+                    self.longitudinal_slip = np.array([s_lf, s_rf, s_lr, s_rr])
+                    self.lateral_slip = np.array([alpha_LF, alpha_RF, alpha_LR, alpha_RR])
+                    self.vertical_tire_forces = np.array([F_z_LF, F_z_RF, F_z_LR, F_z_RR])
+                    self.state = x_left[0][1]
+
+                for iState in range(23, 27):
+                    if self.state[iState] < 0.0:
+                        self.state[iState] = 0.0
 
         # bound yaw angle
         # if self.state[4] > 2 * np.pi:
         #     self.state[4] = self.state[4] - 2 * np.pi
         # elif self.state[4] < 0:
         #     self.state[4] = self.state[4] + 2 * np.pi
-        self.state[4] = (self.state[4] + 2*np.pi) % (2 * np.pi)
+        self.state[self.YAW] = (self.state[self.YAW] + 2 * np.pi) % (2 * np.pi)
 
         # update scan
         current_scan = self.get_current_scan()
@@ -446,7 +483,7 @@ class RaceCar(object):
         return current_scan
 
     def get_current_scan(self):
-        return RaceCar.scan_simulator.scan(np.append(self.state[0:2], self.state[4]), self.scan_rng)
+        return RaceCar.scan_simulator.scan(np.append(self.state[0:2], self.state[self.YAW]), self.scan_rng)
 
     def update_opp_poses(self, opp_poses):
         """
@@ -460,7 +497,7 @@ class RaceCar(object):
         """
         self.opp_poses = opp_poses
 
-    def update_scan(self, agent_scans, agent_index):
+    def update_scan(self, agent_scans, agent_index, ttc_check=True):
         """
         Steps the vehicle's laser scan simulation
         Separated from update_pose because needs to update scan based on NEW poses of agents in the environment
@@ -476,7 +513,8 @@ class RaceCar(object):
         current_scan = agent_scans[agent_index]
 
         # check ttc
-        self.check_ttc(current_scan)
+        if ttc_check:
+            self.check_ttc(current_scan)
 
         # ray cast other agents to modify scan
         new_scan = self.ray_cast_agents(current_scan)
@@ -499,7 +537,7 @@ class Simulator(object):
     """
 
     def __init__(self, model, steering_control_mode, drive_control_mode, params, num_agents, seed, time_step=0.01,
-                 ego_idx=0, scan_beam=1080):
+                 ego_idx=0, scan_beam=1080, map_collision_check=False):
         """
         Init function
 
@@ -526,6 +564,15 @@ class Simulator(object):
         self.agents = []
         self.collisions = np.zeros((self.num_agents,))
         self.collision_idx = -1 * np.ones((self.num_agents,))
+        self.map_collision_check = map_collision_check
+
+        # USE index to increase flexibility
+        if self.model == 'dynamic_f110':
+            self.params_idx = dynamic_f110_idx
+        elif self.model == 'dynamic_ST':
+            self.params_idx = dynamic_idx
+        for key, value in self.params_idx.items():
+            setattr(self, key, value)
 
         # initializing agents
         for i in range(self.num_agents):
@@ -537,7 +584,7 @@ class Simulator(object):
                 agent = RaceCar(self.model, self.steering_control_mode, self.drive_control_mode, params, self.seed,
                                 time_step=self.time_step, is_ego=False, num_beams=scan_beam)
                 self.agents.append(agent)
-                
+
         # self.observations = self.get_observations(np.zeros((self.num_agents, 2)))
         self.observations = None
 
@@ -590,7 +637,8 @@ class Simulator(object):
         # get vertices of all agents
         all_vertices = np.empty((self.num_agents, 4, 2))
         for i in range(self.num_agents):
-            all_vertices[i, :, :] = get_vertices(np.append(self.agents[i].state[0:2], self.agents[i].state[4]), self.params['length'], self.params['width'])
+            all_vertices[i, :, :] = get_vertices(np.append(self.agents[i].state[0:2], self.agents[i].state[self.YAW]),
+                                                 self.params['length'], self.params['width'])
         self.collisions, self.collision_idx = collision_multiple(all_vertices)
 
     def step(self, control_inputs):
@@ -607,7 +655,7 @@ class Simulator(object):
         # doing step for all agents
         for i, agent in enumerate(self.agents):
             # update each agent's pose
-            agent.update_pose(control_inputs[i, 0], control_inputs[i, 1])
+            agent.step(control_inputs[i, 0], control_inputs[i, 1])
 
         observations = self.get_observations(control_inputs)
         self.observations = observations
@@ -627,10 +675,11 @@ class Simulator(object):
                 agent_scans.append(current_scan)
 
             # update sim's information of agent poses
-            self.agent_poses[i, :] = np.append(agent.state[0:2], agent.state[4])
+            self.agent_poses[i, :] = np.append(agent.state[0:2], agent.state[self.YAW])
 
         # check collisions between all agents
-        self.check_collision()
+        if self.map_collision_check:
+            self.check_collision()
 
         for i, agent in enumerate(self.agents):
             if DO_SCAN:
@@ -639,7 +688,7 @@ class Simulator(object):
                 agent.update_opp_poses(opp_poses)
 
                 # update each agent's current scan based on other agents
-                agent.update_scan(agent_scans, i)
+                agent.update_scan(agent_scans, i, ttc_check=self.map_collision_check)
 
             # update agent collision with environment
             if agent.in_collision:
@@ -667,6 +716,26 @@ class Simulator(object):
                 observations['linear_vels_x'].append(agent.state[3])
                 observations['linear_vels_y'].append(0.)
                 observations['ang_vels_z'].append(agent.state[5])
+        elif self.model == 'dynamic_f110':
+            observations = {'ego_idx': self.ego_idx,
+                            'scans': [],
+                            'poses_x': [],
+                            'poses_y': [],
+                            'poses_delta': [],
+                            'poses_theta': [],
+                            'linear_vels_x': [],
+                            'linear_vels_y': [],
+                            'ang_vels_z': [],
+                            'collisions': self.collisions}
+            for i, agent in enumerate(self.agents):
+                observations['scans'].append(agent_scans[i])
+                observations['poses_x'].append(agent.state[0])
+                observations['poses_y'].append(agent.state[1])
+                observations['poses_delta'].append(agent.state[2])
+                observations['poses_theta'].append(agent.state[3])
+                observations['linear_vels_x'].append(agent.state[4])
+                observations['linear_vels_y'].append(agent.state[5])
+                observations['ang_vels_z'].append(agent.state[6])
         # self.model=='MB'
         else:
             observations = {'ego_idx': self.ego_idx,
@@ -678,12 +747,12 @@ class Simulator(object):
                             'linear_vels_y': [],
                             'ang_vels_z': [],
                             'collisions': self.collisions,
-                            'x1': [], # x-pos
-                            'x2': [], # y-pos
-                            'x3': [], # steer
-                            'x4': [], # vx
-                            'x5': [], # yaw angle
-                            'x6': [], # yaw rate
+                            'x1': [],  # x-pos
+                            'x2': [],  # y-pos
+                            'x3': [],  # steer
+                            'x4': [],  # vx
+                            'x5': [],  # yaw angle
+                            'x6': [],  # yaw rate
                             # 'x11': [], # vy
                             # 'x12': [], # height
                             # 'x13': [], # vz
@@ -729,17 +798,24 @@ class Simulator(object):
 
         if initial_states.shape[0] != self.num_agents:
             raise ValueError('Number of poses for reset does not match number of agents.')
-        
+
         if initial_states.shape[1] == 29:
             for i in range(self.num_agents):
                 self.agents[i].reset(initial_states[i])
 
-        else:
+        elif self.model == 'dynamic_ST':
             # loop over poses to reset
             for i in range(self.num_agents):
                 self.agents[i].reset(initial_states[i, [0, 1, 2]],
-                                    steering_angle=initial_states[i, 3],
-                                    velocity=initial_states[i, 4],
-                                    yaw_rate=initial_states[i, 5],
-                                    beta=initial_states[i, 6])
+                                     steering_angle=initial_states[i, 3],
+                                     velocity=initial_states[i, 4],
+                                     yaw_rate=initial_states[i, 5],
+                                     beta=initial_states[i, 6])
+        elif self.model == 'dynamic_f110':
+            for i in range(self.num_agents):
+                self.agents[i].reset(initial_states[i, [0, 1, self.YAW]],
+                                     steering_angle=initial_states[i, self.DELTA],
+                                     vx=initial_states[i, self.VX],
+                                     vy=initial_states[i, self.VY],
+                                     yaw_rate=initial_states[i, self.YAWRATE])
         self.observations = None

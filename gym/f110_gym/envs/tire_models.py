@@ -158,3 +158,6 @@ def formula_lateral_comb(kappa, alpha, gamma, mu_y, F_z, F0_y, params):
     # magic tire formula
     return D_ykappa * np.cos(C_ykappa * np.arctan(
         B_ykappa * kappa_s - E_ykappa * (B_ykappa * kappa_s - np.arctan(B_ykappa * kappa_s)))) + S_vykappa
+
+
+
